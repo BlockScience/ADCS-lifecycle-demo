@@ -237,7 +237,7 @@ def main():
                         help="Auto-attest with scripted judgments")
     parser.add_argument("--no-attest", action="store_true",
                         help="Skip attestation stage")
-    parser.add_argument("--engineer", default="ADCS Engineer",
+    parser.add_argument("--engineer", default="Dr. Michael Zargham (@mzargham)",
                         help="Engineer name for attestation")
     args = parser.parse_args()
 
