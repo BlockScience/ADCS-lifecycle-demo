@@ -74,8 +74,7 @@ def explain_requirement(graph: Graph, req_name: str) -> str:
         ?ev a ?type ;
             rtm:contentHash ?hash ;
             rtm:resultSummary ?summary ;
-            prov:wasGeneratedBy ?activity .
-        ?activity prov:used ?req .
+            rtm:addresses ?req .
         ?req sysml:declaredName "{req_name}" .
         FILTER(?type IN (rtm:ProofArtifact, rtm:SimulationResult))
         OPTIONAL {{ ?ev rtm:proofHash ?proofHash }}

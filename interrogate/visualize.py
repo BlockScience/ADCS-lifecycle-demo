@@ -120,13 +120,12 @@ def _extract_graph_data(rdf_graph: Graph) -> tuple[nx.DiGraph, dict, dict]:
     for row in query_to_dicts(rdf_graph, q):
         G.add_edge(row["reqName"], row["elementName"], rel="satisfiedBy")
 
-    # --- Evidence nodes ---
+    # --- Evidence nodes (linked via rtm:addresses) ---
     q = """
     SELECT ?ev ?type ?hash ?reqName WHERE {
         ?ev a ?type ;
             rtm:contentHash ?hash ;
-            prov:wasGeneratedBy ?act .
-        ?act prov:used ?req .
+            rtm:addresses ?req .
         ?req sysml:declaredName ?reqName .
         FILTER(?type IN (rtm:ProofArtifact, rtm:SimulationResult))
     }
@@ -142,7 +141,7 @@ def _extract_graph_data(rdf_graph: Graph) -> tuple[nx.DiGraph, dict, dict]:
         G.add_node(node_id, label=label)
         node_colors[node_id] = color
         node_types[node_id] = "evidence"
-        G.add_edge(row["reqName"], node_id, rel="evidence")
+        G.add_edge(row["reqName"], node_id, rel="addresses")
 
     # --- Attestation nodes ---
     q = """
@@ -261,7 +260,7 @@ def _hierarchical_layout(
     ev_nodes = sorted([n for n, t in node_types.items() if t == "evidence"])
     ev_req_map: dict[str, str] = {}
     for u, v, data in G.edges(data=True):
-        if data.get("rel") == "evidence" and v in ev_nodes:
+        if data.get("rel") == "addresses" and v in ev_nodes:
             ev_req_map[v] = u
 
     # Group evidence by requirement, then stack vertically near that requirement
@@ -300,7 +299,7 @@ def build_rtm_figure(
     edge_styles = {
         "derivedFrom": {"style": "solid", "color": "#888888", "width": 1.5},
         "satisfiedBy": {"style": "solid", "color": "#555555", "width": 1.5},
-        "evidence": {"style": "dashed", "color": "#999999", "width": 1.0},
+        "addresses": {"style": "dashed", "color": "#999999", "width": 1.0},
         "attests": {"style": "solid", "color": COLORS["attestation"], "width": 2.0},
     }
 

@@ -1,8 +1,11 @@
 """Bind computational evidence to the RDF traceability graph.
 
-Creates rtm:Evidence nodes (ProofArtifact, SimulationResult) linked to the
-computational activities that produced them via PROV-O. Evidence is NOT
-linked directly to requirements — only attestation does that.
+Creates rtm:Evidence nodes (ProofArtifact, SimulationResult) linked to:
+- The computational activity that produced them (prov:wasGeneratedBy)
+- The requirement they address (rtm:addresses) — structural intent, not judgment
+
+Evidence *addresses* a requirement but does not *satisfy* it.
+Only human attestation (rtm:attests) connects evidence to satisfaction.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ def bind_proof_evidence(
     graph.add((ev_uri, RTM.proofHash, Literal(proof_hash)))
     graph.add((ev_uri, RTM.resultSummary, Literal(result_summary)))
     graph.add((ev_uri, RTM.evidenceMethod, RTM.FormalProof))
+    graph.add((ev_uri, RTM.addresses, ADCS[requirement_id]))
     graph.add((ev_uri, PROV.wasGeneratedBy, act_uri))
     graph.add((ev_uri, PROV.generatedAtTime, Literal(
         datetime.now(timezone.utc).isoformat(), datatype=XSD.dateTime,
@@ -83,6 +87,7 @@ def bind_simulation_evidence(
     graph.add((ev_uri, RTM.modelHash, Literal(model_hash)))
     graph.add((ev_uri, RTM.resultSummary, Literal(result_summary)))
     graph.add((ev_uri, RTM.evidenceMethod, RTM.Simulation))
+    graph.add((ev_uri, RTM.addresses, ADCS[requirement_id]))
     graph.add((ev_uri, PROV.wasGeneratedBy, act_uri))
     graph.add((ev_uri, PROV.generatedAtTime, Literal(
         datetime.now(timezone.utc).isoformat(), datatype=XSD.dateTime,

@@ -459,8 +459,12 @@ def __(mo):
     to the structural model version), and PROV-O provenance (who/what
     produced it, when).
 
-    Evidence is **not linked directly to requirements**. It floats in the
-    graph, waiting for a human to judge its sufficiency.
+    Each evidence artifact **addresses** a specific requirement — recording
+    the structural intent that "this proof was constructed to evaluate
+    REQ-003." But `rtm:addresses` is not `rtm:attests`. The evidence
+    says *what was analyzed*; only human attestation says *whether it's
+    sufficient*. An evidence artifact can address a requirement and still
+    lead to a declined attestation — as we'll see with REQ-001.
     """)
     return
 

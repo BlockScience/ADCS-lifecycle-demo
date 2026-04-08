@@ -86,8 +86,7 @@ def validate_evidence_completeness(graph: Graph) -> list[str]:
         name = req["name"]
         q = f"""
         SELECT (COUNT(?ev) AS ?cnt) WHERE {{
-            ?ev prov:wasGeneratedBy ?act .
-            ?act prov:used ?req .
+            ?ev rtm:addresses ?req .
             ?req sysml:declaredName "{name}" .
         }}
         """

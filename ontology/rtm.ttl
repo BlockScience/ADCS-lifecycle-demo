@@ -20,8 +20,9 @@ rtm: a owl:Ontology ;
         and attestation concepts needed to close the traceability loop.
 
         Core epistemological principle: computational evidence does not verify
-        requirements. Evidence supports a human judgment (attestation) that
-        requirements are satisfied. Models are imperfect representations;
+        requirements. Evidence *addresses* a requirement (structural intent)
+        but only human attestation connects evidence to requirement
+        *satisfaction* (judgment). Models are imperfect representations;
         the engineer judges model adequacy and evidence sufficiency.""" ;
     owl:imports <http://www.w3.org/ns/prov#> .
 
@@ -125,6 +126,25 @@ rtm:attestedBy a owl:ObjectProperty ;
     rdfs:label "attested by" ;
     rdfs:comment "Inverse of rtm:attests." ;
     owl:inverseOf rtm:attests .
+
+rtm:addresses a owl:ObjectProperty ;
+    rdfs:domain rtm:Evidence ;
+    rdfs:range sysml:RequirementDefinition ;
+    rdfs:label "addresses" ;
+    rdfs:comment """Structural link from evidence to the requirement it was
+        produced to evaluate. This is NOT an attestation — it records
+        intent ('this proof was constructed to address REQ-003'), not
+        judgment ('this proof is sufficient to satisfy REQ-003').
+        The human attestation resolves whether addressed evidence is
+        sufficient.""" ;
+    owl:inverseOf rtm:addressedBy .
+
+rtm:addressedBy a owl:ObjectProperty ;
+    rdfs:domain sysml:RequirementDefinition ;
+    rdfs:range rtm:Evidence ;
+    rdfs:label "addressed by" ;
+    rdfs:comment "Inverse of rtm:addresses." ;
+    owl:inverseOf rtm:addresses .
 
 rtm:hasEvidence a owl:ObjectProperty ;
     rdfs:domain rtm:Attestation ;

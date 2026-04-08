@@ -53,11 +53,10 @@ ORDER BY ?adcsName
 # ---------------------------------------------------------------------------
 
 ALL_EVIDENCE = """
-SELECT ?ev ?type ?method ?hash ?summary ?activity WHERE {
+SELECT ?ev ?type ?method ?hash ?summary WHERE {
     ?ev a ?type ;
         rtm:contentHash ?hash ;
-        rtm:resultSummary ?summary ;
-        prov:wasGeneratedBy ?activity .
+        rtm:resultSummary ?summary .
     OPTIONAL { ?ev rtm:evidenceMethod ?method }
     FILTER(?type IN (rtm:ProofArtifact, rtm:SimulationResult))
 }
@@ -69,8 +68,7 @@ SELECT ?ev ?type ?hash ?summary WHERE {
     ?ev a ?type ;
         rtm:contentHash ?hash ;
         rtm:resultSummary ?summary ;
-        prov:wasGeneratedBy ?activity .
-    ?activity prov:used ?req .
+        rtm:addresses ?req .
     ?req sysml:declaredName ?reqName .
     FILTER(?type IN (rtm:ProofArtifact, rtm:SimulationResult))
     FILTER(?reqName = "%s")
@@ -141,8 +139,7 @@ SELECT ?reqName ?elementName ?evType ?evHash ?evSummary ?attEngineer ?attTime WH
         ?ev a ?evType ;
             rtm:contentHash ?evHash ;
             rtm:resultSummary ?evSummary ;
-            prov:wasGeneratedBy ?activity .
-        ?activity prov:used ?req .
+            rtm:addresses ?req .
         FILTER(?evType IN (rtm:ProofArtifact, rtm:SimulationResult))
     }
     OPTIONAL {
