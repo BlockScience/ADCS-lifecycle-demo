@@ -363,44 +363,53 @@ def __(mo, step_result, step_summary):
     import numpy as np
 
     _fig, _axes = plt.subplots(2, 2, figsize=(12, 8))
+    _axis_colors = {"X": "#1f77b4", "Y": "#2ca02c", "Z": "#9467bd"}  # blue, green, purple
+    _limit_color = "#d62728"  # red reserved exclusively for requirement limits
 
     # Attitude error
     _q_vec = np.linalg.norm(step_result.q[:, :3], axis=1)
     _theta_deg = np.degrees(2 * _q_vec)
-    _axes[0, 0].plot(step_result.t, _theta_deg, 'b-', linewidth=1.5)
-    _axes[0, 0].axhline(0.1, color='r', linestyle='--', label='REQ-001 limit')
+    _axes[0, 0].plot(step_result.t, _theta_deg, color=_axis_colors["X"], linewidth=1.5, label='Attitude error')
+    _axes[0, 0].axhline(0.1, color=_limit_color, linestyle='--', linewidth=1, label='REQ-001 limit (0.1 deg)')
     _axes[0, 0].set_xlabel('Time (s)')
     _axes[0, 0].set_ylabel('Attitude Error (deg)')
     _axes[0, 0].set_title('Pointing Convergence')
-    _axes[0, 0].legend()
+    _axes[0, 0].legend(fontsize=8)
     _axes[0, 0].grid(True, alpha=0.3)
 
     # Angular velocity
-    _axes[0, 1].plot(step_result.t, np.degrees(step_result.omega), linewidth=1)
+    for _i, (_axis, _c) in enumerate(_axis_colors.items()):
+        _axes[0, 1].plot(step_result.t, np.degrees(step_result.omega[:, _i]),
+                         color=_c, linewidth=1, label=f'{_axis}-axis')
     _axes[0, 1].set_xlabel('Time (s)')
     _axes[0, 1].set_ylabel('Angular Rate (deg/s)')
     _axes[0, 1].set_title('Angular Velocity')
-    _axes[0, 1].legend(['X', 'Y', 'Z'])
+    _axes[0, 1].legend(fontsize=8)
     _axes[0, 1].grid(True, alpha=0.3)
 
     # Control torque
-    _axes[1, 0].plot(step_result.t, step_result.tau_ctrl, linewidth=1)
-    _axes[1, 0].axhline(step_result.config.max_torque, color='r', linestyle='--', alpha=0.5)
-    _axes[1, 0].axhline(-step_result.config.max_torque, color='r', linestyle='--', alpha=0.5)
+    for _i, (_axis, _c) in enumerate(_axis_colors.items()):
+        _axes[1, 0].plot(step_result.t, step_result.tau_ctrl[:, _i],
+                         color=_c, linewidth=1, label=f'{_axis}-axis')
+    _axes[1, 0].axhline(step_result.config.max_torque, color=_limit_color, linestyle='--',
+                         linewidth=1, alpha=0.7, label='Torque limit')
+    _axes[1, 0].axhline(-step_result.config.max_torque, color=_limit_color, linestyle='--',
+                         linewidth=1, alpha=0.7)
     _axes[1, 0].set_xlabel('Time (s)')
     _axes[1, 0].set_ylabel('Torque (N.m)')
     _axes[1, 0].set_title('Control Torque')
-    _axes[1, 0].legend(['X', 'Y', 'Z'])
+    _axes[1, 0].legend(fontsize=8)
     _axes[1, 0].grid(True, alpha=0.3)
 
     # Wheel momentum
     _h_mag = np.linalg.norm(step_result.h_wheel, axis=1)
-    _axes[1, 1].plot(step_result.t, _h_mag, 'g-', linewidth=1.5)
-    _axes[1, 1].axhline(step_result.config.max_momentum, color='r', linestyle='--', label='REQ-002 limit')
+    _axes[1, 1].plot(step_result.t, _h_mag, color=_axis_colors["X"], linewidth=1.5, label='|h| (total)')
+    _axes[1, 1].axhline(step_result.config.max_momentum, color=_limit_color, linestyle='--',
+                         linewidth=1, label='REQ-002 limit (4.0 N.m.s)')
     _axes[1, 1].set_xlabel('Time (s)')
     _axes[1, 1].set_ylabel('Momentum (N.m.s)')
     _axes[1, 1].set_title('Wheel Angular Momentum')
-    _axes[1, 1].legend()
+    _axes[1, 1].legend(fontsize=8)
     _axes[1, 1].grid(True, alpha=0.3)
 
     _fig.suptitle('Step Response: 10-degree Slew Maneuver', fontsize=14, fontweight='bold')
