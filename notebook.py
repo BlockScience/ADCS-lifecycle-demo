@@ -710,32 +710,12 @@ def __(mo):
 
 
 @app.cell
-def __(rtm_graph, mo):
-    from interrogate.visualize import build_dot
-    import subprocess
-    import tempfile
-    from pathlib import Path
+def __(rtm_graph):
+    from interrogate.visualize import build_rtm_figure
 
-    _dot = build_dot(rtm_graph)
-    _svg_html = ""
-
-    try:
-        _result = subprocess.run(
-            ["dot", "-Tsvg"],
-            input=_dot, capture_output=True, text=True, timeout=10,
-        )
-        if _result.returncode == 0:
-            _svg_html = _result.stdout
-    except FileNotFoundError:
-        pass
-
-    _graph_content = (
-        f"### Requirements Traceability Matrix\n\n{mo.as_html(_svg_html)}"
-        if _svg_html
-        else f"### RTM Graph (DOT source)\n\nInstall graphviz to render.\n\n```dot\n{_dot[:2000]}...\n```"
-    )
-    mo.md(_graph_content)
-    return build_dot, subprocess, tempfile, Path
+    rtm_fig = build_rtm_figure(rtm_graph, figsize=(18, 10))
+    rtm_fig
+    return rtm_fig, build_rtm_figure
 
 
 @app.cell

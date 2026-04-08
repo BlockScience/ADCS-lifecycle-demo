@@ -1,42 +1,55 @@
-"""RTM graph visualization using graphviz.
+"""RTM graph visualization using NetworkX + matplotlib.
 
-Renders the traceability graph as a directed graph with nodes color-coded
-by type and edge labels showing relationship types.
+Renders the traceability graph with a hierarchical layout reflecting the
+flow: satellite requirements -> ADCS requirements -> design elements ->
+evidence -> attestations.
+
+Nodes are color-coded by type, edges labeled by relationship.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import networkx as nx
 from rdflib import Graph
 
 from ontology.prefixes import PROV, RTM, SYSML
 from traceability.queries import query_to_dicts
 
 # Color scheme
-_COLORS = {
-    "requirement": "#4A90D9",      # blue
+COLORS = {
     "sat_requirement": "#7FB3DE",  # light blue
+    "requirement": "#4A90D9",      # blue
     "design_element": "#7BC67E",   # green
     "proof": "#F5A623",            # orange
-    "simulation": "#F5D423",       # yellow
+    "simulation": "#E8C840",       # gold
     "attestation": "#D94A4A",      # red
-    "engine": "#999999",           # gray
-    "engineer": "#C49BD9",         # purple
+}
+
+# Layers for hierarchical layout (left to right)
+_LAYER_X = {
+    "attestation": 0,
+    "sat_requirement": 1,
+    "requirement": 2,
+    "design_element": 3,
+    "evidence": 4,
 }
 
 
-def build_dot(graph: Graph) -> str:
-    """Build a Graphviz DOT string from the RTM graph."""
-    lines = [
-        'digraph RTM {',
-        '  rankdir=LR;',
-        '  node [shape=box, style="filled,rounded", fontname="Helvetica", fontsize=10];',
-        '  edge [fontname="Helvetica", fontsize=8];',
-        '',
-    ]
+def _extract_graph_data(rdf_graph: Graph) -> tuple[nx.DiGraph, dict, dict]:
+    """Extract nodes and edges from RDF into a NetworkX DiGraph.
 
-    # Satellite-level requirements
+    Returns (G, node_colors, node_types) where node_colors maps
+    node_id -> hex color and node_types maps node_id -> type string.
+    """
+    G = nx.DiGraph()
+    node_colors = {}
+    node_types = {}
+
+    # --- Satellite requirements ---
     q = """
     SELECT ?name WHERE {
         ?req a sysml:RequirementDefinition ;
@@ -44,12 +57,15 @@ def build_dot(graph: Graph) -> str:
         FILTER(STRSTARTS(?name, "SAT-"))
     }
     """
-    for row in query_to_dicts(graph, q):
+    for row in query_to_dicts(rdf_graph, q):
         n = row["name"]
-        lines.append(f'  "{n}" [fillcolor="{_COLORS["sat_requirement"]}", '
-                     f'label="{n}\\n(satellite)"];')
+        # Shorten for display
+        short = n.replace("SAT-REQ-", "SAT:\n")
+        G.add_node(n, label=short)
+        node_colors[n] = COLORS["sat_requirement"]
+        node_types[n] = "sat_requirement"
 
-    # ADCS requirements
+    # --- ADCS requirements ---
     q = """
     SELECT ?name WHERE {
         ?req a sysml:RequirementDefinition ;
@@ -57,11 +73,13 @@ def build_dot(graph: Graph) -> str:
         FILTER(STRSTARTS(?name, "REQ-"))
     }
     """
-    for row in query_to_dicts(graph, q):
+    for row in query_to_dicts(rdf_graph, q):
         n = row["name"]
-        lines.append(f'  "{n}" [fillcolor="{_COLORS["requirement"]}"];')
+        G.add_node(n, label=n)
+        node_colors[n] = COLORS["requirement"]
+        node_types[n] = "requirement"
 
-    # Derivation edges
+    # --- Derivation edges ---
     q = """
     SELECT ?child ?parent WHERE {
         ?c sysml:declaredName ?child ;
@@ -69,10 +87,10 @@ def build_dot(graph: Graph) -> str:
         ?p sysml:declaredName ?parent .
     }
     """
-    for row in query_to_dicts(graph, q):
-        lines.append(f'  "{row["parent"]}" -> "{row["child"]}" [label="derivedFrom"];')
+    for row in query_to_dicts(rdf_graph, q):
+        G.add_edge(row["parent"], row["child"], rel="derivedFrom")
 
-    # Design elements (from satisfy links)
+    # --- Design elements ---
     q = """
     SELECT DISTINCT ?elementName WHERE {
         ?rel a sysml:SatisfyRequirementUsage ;
@@ -80,11 +98,15 @@ def build_dot(graph: Graph) -> str:
         ?el sysml:declaredName ?elementName .
     }
     """
-    for row in query_to_dicts(graph, q):
+    for row in query_to_dicts(rdf_graph, q):
         n = row["elementName"]
-        lines.append(f'  "{n}" [fillcolor="{_COLORS["design_element"]}"];')
+        # Shorten reaction wheel names
+        short = n.replace("ReactionWheel_", "RW-")
+        G.add_node(n, label=short)
+        node_colors[n] = COLORS["design_element"]
+        node_types[n] = "design_element"
 
-    # Satisfy edges
+    # --- Satisfy edges ---
     q = """
     SELECT ?reqName ?elementName WHERE {
         ?req sysml:declaredName ?reqName ;
@@ -95,10 +117,10 @@ def build_dot(graph: Graph) -> str:
         FILTER(STRSTARTS(?reqName, "REQ-"))
     }
     """
-    for row in query_to_dicts(graph, q):
-        lines.append(f'  "{row["reqName"]}" -> "{row["elementName"]}" [label="satisfiedBy"];')
+    for row in query_to_dicts(rdf_graph, q):
+        G.add_edge(row["reqName"], row["elementName"], rel="satisfiedBy")
 
-    # Evidence nodes
+    # --- Evidence nodes ---
     q = """
     SELECT ?ev ?type ?hash ?reqName WHERE {
         ?ev a ?type ;
@@ -109,16 +131,20 @@ def build_dot(graph: Graph) -> str:
         FILTER(?type IN (rtm:ProofArtifact, rtm:SimulationResult))
     }
     """
-    for row in query_to_dicts(graph, q):
+    for row in query_to_dicts(rdf_graph, q):
         ev_type = row["type"].split("#")[-1]
         short_hash = row["hash"][:8]
         node_id = f"ev_{short_hash}"
-        color = _COLORS["proof"] if ev_type == "ProofArtifact" else _COLORS["simulation"]
-        label = f"{ev_type}\\n{short_hash}..."
-        lines.append(f'  "{node_id}" [fillcolor="{color}", label="{label}"];')
-        lines.append(f'  "{row["reqName"]}" -> "{node_id}" [label="evidence", style=dashed];')
+        is_proof = ev_type == "ProofArtifact"
+        label = f"Proof\n{short_hash}" if is_proof else f"Sim\n{short_hash}"
+        color = COLORS["proof"] if is_proof else COLORS["simulation"]
 
-    # Attestation nodes
+        G.add_node(node_id, label=label)
+        node_colors[node_id] = color
+        node_types[node_id] = "evidence"
+        G.add_edge(row["reqName"], node_id, rel="evidence")
+
+    # --- Attestation nodes ---
     q = """
     SELECT ?reqName ?engineer ?timestamp WHERE {
         ?att a rtm:Attestation ;
@@ -129,35 +155,189 @@ def build_dot(graph: Graph) -> str:
         ?req sysml:declaredName ?reqName .
     }
     """
-    for row in query_to_dicts(graph, q):
+    for row in query_to_dicts(rdf_graph, q):
         att_id = f"att_{row['reqName']}"
         ts = row["timestamp"][:10] if row["timestamp"] else ""
-        label = f"Attestation\\n{row['engineer']}\\n{ts}"
-        lines.append(f'  "{att_id}" [fillcolor="{_COLORS["attestation"]}", '
-                     f'fontcolor=white, label="{label}"];')
-        lines.append(f'  "{att_id}" -> "{row["reqName"]}" [label="attests", '
-                     f'color="{_COLORS["attestation"]}"];')
+        # Shorten engineer name for display
+        eng = row["engineer"].split("(")[0].strip()
+        label = f"Attested\n{eng}\n{ts}"
+        G.add_node(att_id, label=label)
+        node_colors[att_id] = COLORS["attestation"]
+        node_types[att_id] = "attestation"
+        G.add_edge(att_id, row["reqName"], rel="attests")
 
-    lines.append('}')
-    return '\n'.join(lines)
+    return G, node_colors, node_types
+
+
+def _hierarchical_layout(
+    G: nx.DiGraph, node_types: dict, x_spacing: float = 3.0, y_spacing: float = 1.5,
+) -> dict:
+    """Compute a hierarchical layout grouping nodes by type into columns.
+
+    Columns (left to right):
+      attestations | sat requirements | ADCS requirements | design elements | evidence
+    """
+    # Group nodes by layer
+    layers: dict[str, list[str]] = {}
+    for node in G.nodes():
+        ntype = node_types.get(node, "evidence")
+        layer = ntype if ntype != "evidence" else "evidence"
+        layers.setdefault(layer, []).append(node)
+
+    # Sort nodes within each layer for determinism
+    for layer in layers:
+        layers[layer] = sorted(layers[layer])
+
+    # Assign positions
+    pos = {}
+    layer_order = ["attestation", "sat_requirement", "requirement", "design_element", "evidence"]
+
+    for col_idx, layer_name in enumerate(layer_order):
+        nodes = layers.get(layer_name, [])
+        n = len(nodes)
+        if n == 0:
+            continue
+        x = col_idx * x_spacing
+        # Center vertically
+        for row_idx, node in enumerate(nodes):
+            y = (n - 1) / 2 * y_spacing - row_idx * y_spacing
+            pos[node] = (x, y)
+
+    return pos
+
+
+def build_rtm_figure(
+    rdf_graph: Graph,
+    figsize: tuple[float, float] = (16, 10),
+    title: str = "Requirements Traceability Matrix",
+) -> plt.Figure:
+    """Build a matplotlib figure of the RTM graph.
+
+    Returns the Figure object for display in marimo or saving to file.
+    """
+    G, node_colors, node_types = _extract_graph_data(rdf_graph)
+    pos = _hierarchical_layout(G, node_types)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Draw edges by type with different styles
+    edge_styles = {
+        "derivedFrom": {"style": "solid", "color": "#888888", "width": 1.5},
+        "satisfiedBy": {"style": "solid", "color": "#555555", "width": 1.5},
+        "evidence": {"style": "dashed", "color": "#999999", "width": 1.0},
+        "attests": {"style": "solid", "color": COLORS["attestation"], "width": 2.0},
+    }
+
+    for rel_type, style in edge_styles.items():
+        edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("rel") == rel_type]
+        if edges:
+            nx.draw_networkx_edges(
+                G, pos, edgelist=edges, ax=ax,
+                style=style["style"],
+                edge_color=style["color"],
+                width=style["width"],
+                arrows=True,
+                arrowsize=15,
+                arrowstyle="-|>",
+                connectionstyle="arc3,rad=0.1",
+                min_source_margin=20,
+                min_target_margin=20,
+            )
+
+    # Draw nodes
+    for node in G.nodes():
+        x, y = pos[node]
+        color = node_colors.get(node, "#cccccc")
+        ntype = node_types.get(node, "")
+        label = G.nodes[node].get("label", node)
+
+        # Node shape/size by type
+        if ntype == "attestation":
+            bbox = dict(boxstyle="round,pad=0.4", facecolor=color, edgecolor="#333", linewidth=1.5)
+            fontcolor = "white"
+            fontsize = 7
+        elif ntype in ("sat_requirement", "requirement"):
+            bbox = dict(boxstyle="round,pad=0.4", facecolor=color, edgecolor="#333", linewidth=1.5)
+            fontcolor = "white"
+            fontsize = 9
+        elif ntype == "design_element":
+            bbox = dict(boxstyle="round,pad=0.4", facecolor=color, edgecolor="#333", linewidth=1.5)
+            fontcolor = "#1a1a1a"
+            fontsize = 8
+        else:  # evidence
+            bbox = dict(boxstyle="round,pad=0.3", facecolor=color, edgecolor="#333", linewidth=1.0)
+            fontcolor = "#1a1a1a"
+            fontsize = 7
+
+        ax.text(x, y, label, ha="center", va="center",
+                fontsize=fontsize, color=fontcolor, fontweight="bold",
+                bbox=bbox, zorder=5)
+
+    # Edge labels
+    edge_labels = {(u, v): d["rel"] for u, v, d in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(
+        G, pos, edge_labels=edge_labels, ax=ax,
+        font_size=6, font_color="#666666",
+        bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none", alpha=0.8),
+    )
+
+    # Legend
+    legend_items = [
+        mpatches.Patch(facecolor=COLORS["sat_requirement"], edgecolor="#333", label="Satellite Requirement"),
+        mpatches.Patch(facecolor=COLORS["requirement"], edgecolor="#333", label="ADCS Requirement"),
+        mpatches.Patch(facecolor=COLORS["design_element"], edgecolor="#333", label="Design Element"),
+        mpatches.Patch(facecolor=COLORS["proof"], edgecolor="#333", label="Proof Artifact"),
+        mpatches.Patch(facecolor=COLORS["simulation"], edgecolor="#333", label="Simulation Result"),
+        mpatches.Patch(facecolor=COLORS["attestation"], edgecolor="#333", label="Attestation"),
+    ]
+    ax.legend(handles=legend_items, loc="lower right", fontsize=8, framealpha=0.9)
+
+    # Column headers
+    col_labels = ["Attestation", "Satellite\nRequirements", "ADCS\nRequirements",
+                  "Design\nElements", "Evidence"]
+    for i, label in enumerate(col_labels):
+        ax.text(i * 3.0, ax.get_ylim()[1] + 0.5, label,
+                ha="center", va="bottom", fontsize=10, fontweight="bold", color="#444")
+
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=30)
+    ax.axis("off")
+    fig.tight_layout()
+
+    return fig
+
+
+# Keep build_dot for backwards compatibility with tests
+def build_dot(graph: Graph) -> str:
+    """Build a Graphviz DOT string from the RTM graph (legacy)."""
+    G, node_colors, node_types = _extract_graph_data(graph)
+
+    lines = [
+        'digraph RTM {',
+        '  rankdir=LR;',
+        '  node [shape=box, style="filled,rounded", fontname="Helvetica", fontsize=10];',
+        '  edge [fontname="Helvetica", fontsize=8];',
+    ]
+    for node in G.nodes():
+        color = node_colors.get(node, "#cccccc")
+        label = G.nodes[node].get("label", node).replace("\n", "\\n")
+        fontcolor = "white" if node_types.get(node) in ("attestation", "requirement", "sat_requirement") else "black"
+        lines.append(f'  "{node}" [fillcolor="{color}", fontcolor={fontcolor}, label="{label}"];')
+    for u, v, d in G.edges(data=True):
+        lines.append(f'  "{u}" -> "{v}" [label="{d.get("rel", "")}"];')
+    lines.append("}")
+    return "\n".join(lines)
 
 
 def render_rtm(
     graph: Graph,
     output_path: str | Path = "output/rtm_graph",
-    fmt: str = "svg",
+    fmt: str = "png",
 ) -> Path:
-    """Render the RTM graph to a file.
-
-    Requires graphviz to be installed on the system.
-    Returns the path to the rendered file.
-    """
-    import graphviz as gv
-
-    dot_str = build_dot(graph)
+    """Render the RTM graph to a file using matplotlib."""
+    fig = build_rtm_figure(graph)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    src = gv.Source(dot_str)
-    rendered = src.render(str(output_path), format=fmt, cleanup=True)
-    return Path(rendered)
+    out_file = output_path.with_suffix(f".{fmt}")
+    fig.savefig(str(out_file), dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file

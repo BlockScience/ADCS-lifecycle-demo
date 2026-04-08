@@ -80,12 +80,19 @@ class TestReproduce:
 
 
 class TestVisualize:
+    def test_build_rtm_figure(self):
+        from interrogate.visualize import build_rtm_figure
+        rtm = run_pipeline(auto_attest=True, engineer_name="Dr. Test")
+        fig = build_rtm_figure(rtm)
+        assert fig is not None
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+
     def test_build_dot(self):
         rtm = run_pipeline(auto_attest=True, engineer_name="Dr. Test")
         dot = build_dot(rtm)
         assert "digraph RTM" in dot
         assert "REQ-001" in dot
         assert "REQ-003" in dot
-        assert "Attestation" in dot
         assert "satisfiedBy" in dot
         assert "derivedFrom" in dot

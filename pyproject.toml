@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.0",
     "graphviz>=0.20",
     "marimo>=0.22.5",
+    "networkx>=3.6.1",
 ]
 
 [project.scripts]
