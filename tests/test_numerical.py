@@ -37,7 +37,7 @@ class TestStepResponse:
         params = load_params()
         result = run_step_response(params)
         assert len(result.t) > 10
-        assert result.t[-1] == 300.0
+        assert result.t[-1] == 360.0
 
     def test_attitude_converges(self):
         """System should converge toward zero error (it's stable)."""

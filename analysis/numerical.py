@@ -255,9 +255,9 @@ def make_config_from_params(
     )
 
 
-def run_step_response(params: dict[str, float]) -> SimResult:
-    """Standard step response: 10-degree slew, 300s simulation."""
-    config = make_config_from_params(params, t_end=300.0, initial_error_deg=10.0)
+def run_step_response(params: dict[str, float], t_end: float = 360.0) -> SimResult:
+    """Standard step response: 10-degree slew."""
+    config = make_config_from_params(params, t_end=t_end, initial_error_deg=10.0)
     return simulate_adcs(config)
 
 

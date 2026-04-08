@@ -369,13 +369,14 @@ def __(mo, step_result, step_summary):
     # Attitude error
     _q_vec = np.linalg.norm(step_result.q[:, :3], axis=1)
     _theta_deg = np.degrees(2 * _q_vec)
-    _axes[0, 0].plot(step_result.t, _theta_deg, color=_axis_colors["X"], linewidth=1.5, label='Attitude error')
+    _axes[0, 0].semilogy(step_result.t, _theta_deg, color=_axis_colors["X"], linewidth=1.5, label='Attitude error')
     _axes[0, 0].axhline(0.1, color=_limit_color, linestyle='--', linewidth=1, label='REQ-001 limit (0.1 deg)')
     _axes[0, 0].set_xlabel('Time (s)')
     _axes[0, 0].set_ylabel('Attitude Error (deg)')
     _axes[0, 0].set_title('Pointing Convergence')
+    _axes[0, 0].set_ylim(bottom=1e-3)
     _axes[0, 0].legend(fontsize=8)
-    _axes[0, 0].grid(True, alpha=0.3)
+    _axes[0, 0].grid(True, alpha=0.3, which='both')
 
     # Angular velocity
     for _i, (_axis, _c) in enumerate(_axis_colors.items()):
