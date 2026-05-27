@@ -7,18 +7,24 @@ ordered call sequence. Stage bodies are in this module as
 `run_stage_<N>_<name>(state)` functions; future WPs can re-import
 them from `pipeline.runner` without going through the CLI.
 
+CLI is a Typer app (WP1 §4.6). The `main()` callable wraps `app()`
+so the `[project.scripts] adcs-pipeline` entry point keeps working.
+
 Usage:
     uv run python -m pipeline.runner              # interactive attestation
     uv run python -m pipeline.runner --auto       # scripted attestation
     uv run python -m pipeline.runner --no-attest  # skip attestation stage
+    uv run python -m pipeline.runner --help       # Typer-rendered help
 """
 
 from __future__ import annotations
 
-import argparse
 import sys
+from enum import Enum
 from pathlib import Path
+from typing import Annotated
 
+import typer
 from rdflib import Dataset
 
 from analysis.build_proofs import build_all_proofs
@@ -423,32 +429,62 @@ def run_pipeline(
     return state.ds
 
 
-def main():
-    parser = argparse.ArgumentParser(description="ADCS Lifecycle Pipeline")
-    parser.add_argument("--auto", action="store_true",
-                        help="Auto-attest with scripted judgments")
-    parser.add_argument("--no-attest", action="store_true",
-                        help="Skip attestation stage")
-    parser.add_argument("--engineer", default="Dr. Michael Zargham (@mzargham)",
-                        help="Engineer name for attestation")
-    parser.add_argument("--rebuild", action="store_true",
-                        help="Invoke `make ontology` before Stage 0 (live-demo rebuild path)")
-    parser.add_argument("--backend", choices=["local", "flexo", "fuseki"], default="local",
-                        help="Persistence backend (default: local filesystem)")
-    parser.add_argument("--compute", choices=["local", "docker"], default="local",
-                        help="Compute backend for Stage 2/3 analysis. "
-                             "`docker` emulates remote compute and captures "
-                             "image/hostname/container-ID as RTM provenance.")
-    args = parser.parse_args()
+class Backend(str, Enum):
+    local = "local"
+    flexo = "flexo"
+    fuseki = "fuseki"
 
+
+class Compute(str, Enum):
+    local = "local"
+    docker = "docker"
+
+
+app = typer.Typer(
+    add_completion=False,
+    help="ADCS Lifecycle Pipeline.",
+    no_args_is_help=False,
+)
+
+
+@app.command()
+def cli(
+    auto: Annotated[bool, typer.Option(
+        "--auto", help="Auto-attest with scripted judgments.",
+    )] = False,
+    no_attest: Annotated[bool, typer.Option(
+        "--no-attest", help="Skip attestation stage entirely.",
+    )] = False,
+    engineer: Annotated[str, typer.Option(
+        "--engineer", help="Engineer name for attestation.",
+    )] = "Dr. Michael Zargham (@mzargham)",
+    rebuild: Annotated[bool, typer.Option(
+        "--rebuild", help="Invoke `make ontology` before Stage 0 (live-demo rebuild path).",
+    )] = False,
+    backend: Annotated[Backend, typer.Option(
+        "--backend", help="Persistence backend.",
+    )] = Backend.local,
+    compute: Annotated[Compute, typer.Option(
+        "--compute",
+        help=("Compute backend for Stage 2/3 analysis. "
+              "`docker` emulates remote compute and captures "
+              "image/hostname/container-ID as RTM provenance."),
+    )] = Compute.local,
+) -> None:
+    """Execute the full ADCS lifecycle pipeline."""
     run_pipeline(
-        auto_attest=args.auto,
-        skip_attestation=args.no_attest,
-        engineer_name=args.engineer,
-        rebuild_ontology=args.rebuild,
-        backend=args.backend,
-        compute=args.compute,
+        auto_attest=auto,
+        skip_attestation=no_attest,
+        engineer_name=engineer,
+        rebuild_ontology=rebuild,
+        backend=backend.value,
+        compute=compute.value,
     )
+
+
+def main() -> None:
+    """Console-script entry point — `[project.scripts] adcs-pipeline`."""
+    app()
 
 
 if __name__ == "__main__":
