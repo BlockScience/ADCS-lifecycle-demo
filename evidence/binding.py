@@ -52,11 +52,11 @@ def _bind_execution_metadata(
     if metadata is None:
         return
 
-    # Executor agent — a SoftwareAgent representing the runtime
-    # environment that actually ran the analysis.
-    suffix = (metadata.container_id or metadata.hostname or "unknown").replace(":", "-")
-    executor = URIRef(f"urn:adcs:executor:{suffix}")
-    location = URIRef(f"urn:adcs:location:{metadata.location_kind}:{metadata.hostname or 'unknown'}")
+    # Executor + location IRI construction lives on ExecutionMetadata so
+    # WP3 / WP4 can reuse the same shapes when introducing new evidence
+    # types (rtm:DockerImage, three-remote URIs).
+    executor = metadata.executor_uri()
+    location = metadata.location_uri()
 
     graph.add((activity_uri, PROV.atLocation, location))
     graph.add((activity_uri, PROV.wasAssociatedWith, executor))

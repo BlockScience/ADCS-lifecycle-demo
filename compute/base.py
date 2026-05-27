@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
+from rdflib import URIRef
+
 
 @dataclass(frozen=True)
 class ExecutionMetadata:
@@ -19,6 +21,13 @@ class ExecutionMetadata:
     the host the compute actually ran on, the container image (if any)
     that pinned the toolchain, the container ID (for log retrieval),
     and a precise timestamp.
+
+    URI contract (consumed by evidence.binding):
+      executor_uri() -> urn:adcs:executor:<suffix>
+      location_uri() -> urn:adcs:location:<location_kind>:<hostname-or-unknown>
+    The shapes are byte-identical to pre-WP1 evidence/binding.py
+    construction; centralizing them here lets WP3 / WP4 reuse the same
+    IRI shape when adding new evidence types.
     """
     location_kind: str             # "local" | "docker" | "remote-server"
     hostname: str                  # uname -n inside the runner
@@ -31,6 +40,21 @@ class ExecutionMetadata:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def executor_uri(self) -> URIRef:
+        """Stable IRI for the prov:SoftwareAgent that ran this stage.
+
+        Prefers container_id (Docker runs) and falls back to hostname
+        (local runs); 'unknown' is the final sentinel. Colons in the
+        suffix are replaced with dashes so the URN parses cleanly.
+        """
+        suffix = (self.container_id or self.hostname or "unknown").replace(":", "-")
+        return URIRef(f"urn:adcs:executor:{suffix}")
+
+    def location_uri(self) -> URIRef:
+        """Stable IRI for the prov:Location where this stage ran."""
+        host = self.hostname or "unknown"
+        return URIRef(f"urn:adcs:location:{self.location_kind}:{host}")
 
 
 @runtime_checkable
