@@ -1,5 +1,12 @@
 """Pipeline orchestrator — runs all lifecycle stages sequentially.
 
+`run_pipeline` threads a `PipelineState` object through per-stage
+free functions; each stage returns a typed result record assigned to
+the matching state field. The orchestrator's job is narration + the
+ordered call sequence. Stage bodies are in this module as
+`run_stage_<N>_<name>(state)` functions; future WPs can re-import
+them from `pipeline.runner` without going through the CLI.
+
 Usage:
     uv run python -m pipeline.runner              # interactive attestation
     uv run python -m pipeline.runner --auto       # scripted attestation
@@ -30,10 +37,20 @@ from evidence.hashing import (
     hash_structural_model,
 )
 from pipeline.backends import get_backend
-from pipeline.dataset import graph_for, load_into, triples_by_graph
+from pipeline.dataset import graph_for, load_into
 from pipeline.stage0_assembly import run_stage_0
-from pipeline.stages import LifecycleStage, check_gate
-from traceability.attestation import request_attestation
+from pipeline.state import (
+    AttestationStageResult,
+    AuditStageResult,
+    ClosureRuleResult,
+    EvidenceBindingResult,
+    NumericalResult,
+    PipelineState,
+    ReportStageResult,
+    StructuralResult,
+    SymbolicResult,
+)
+from traceability.attestation import OUTCOME_FAILED, request_attestation
 from traceability.plan_execution import emit_stage_activity
 from traceability.rtm import (
     STRUCTURAL_DIR,
@@ -48,39 +65,18 @@ from traceability.validation import validate as validate_closure_rules
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
 
-def run_pipeline(
-    *,
-    auto_attest: bool = False,
-    skip_attestation: bool = False,
-    engineer_name: str = "ADCS Engineer",
-    rebuild_ontology: bool = False,
-    backend: str = "local",
-    compute: str = "local",
-) -> Dataset:
-    """Execute the full ADCS lifecycle pipeline.
-
-    Returns the populated Dataset with eight named graphs:
-        <rtm:ontology>, <rtm:plan>, <adcs:structural>, <adcs:context>,
-        <adcs:evidence>, <adcs:attestations>, <adcs:plan-execution>,
-        <adcs:audit>.
-    Default-union is enabled so consumers can query across the union
-    with plain SPARQL.
-    """
-    # ── Stage 0: ONTOLOGY_ASSEMBLED ──────────────────────────────
-    rtm_ds = run_stage_0(rebuild=rebuild_ontology)
-
-    stage = LifecycleStage.STRUCTURAL_DEFINED
-
-    # ── Stage 1: STRUCTURAL_DEFINED ──────────────────────────────
-    emit_stage_activity(rtm_ds, "LoadStructural")
+# ── Stage 1: STRUCTURAL_DEFINED ──────────────────────────────────────
+def run_stage_1_structural(state: PipelineState) -> StructuralResult:
+    emit_stage_activity(state.ds, "LoadStructural")
     print("\n[Stage 1] Loading structural model...")
+    triples_loaded = 0
     for ttl in sorted(STRUCTURAL_DIR.glob("*.ttl")):
-        load_into(rtm_ds, "structural", ttl)
+        triples_loaded += load_into(state.ds, "structural", ttl)
     struct_graph = load_structural_graph()
     model_hash = hash_structural_model(struct_graph)
     params = load_params(struct_graph)
 
-    issues = validate_structural_completeness(rtm_ds)
+    issues = validate_structural_completeness(state.ds)
     if issues:
         print(f"  STRUCTURAL ISSUES: {issues}")
         sys.exit(1)
@@ -88,35 +84,49 @@ def run_pipeline(
     print(f"  Parameters loaded: {len(params)}")
     print(f"  Structural validation: PASS")
 
-    # ── Compute backend (used by Stages 2 & 3) ───────────────────
-    compute_backend = get_compute_backend(compute)
-    print(f"\n  Compute: {compute_backend.describe()}")
+    print(f"\n  Compute: {state.compute_backend.describe()}")
+    return StructuralResult(
+        model_hash=model_hash, params=params, triples_loaded=triples_loaded,
+    )
 
-    # ── Stage 2: SYMBOLICALLY_ANALYZED ───────────────────────────
-    stage = LifecycleStage.SYMBOLICALLY_ANALYZED
-    emit_stage_activity(rtm_ds, "SymbolicAnalysis")
+
+# ── Stage 2: SYMBOLICALLY_ANALYZED ───────────────────────────────────
+def run_stage_2_symbolic(state: PipelineState) -> SymbolicResult:
+    assert state.structural is not None, "Stage 2 requires Stage 1 result"
+    emit_stage_activity(state.ds, "SymbolicAnalysis")
     print("\n[Stage 2] Running symbolic analysis...")
-    sym_result, sym_meta = compute_backend.run_symbolic_analysis(params)
+    sym_result, sym_meta = state.compute_backend.run_symbolic_analysis(
+        state.structural.params,
+    )
     print(f"  Inertia: Jxx={sym_result.inertia[0]:.1f}, "
           f"Jyy={sym_result.inertia[1]:.1f}, "
           f"Jzz={sym_result.inertia[2]:.1f} kg.m^2")
-    print(f"  Stability margins: {', '.join(f'{k}={v:.4f}' for k,v in sym_result.stability_margins.items())}")
+    print(f"  Stability margins: "
+          f"{', '.join(f'{k}={v:.4f}' for k, v in sym_result.stability_margins.items())}")
 
-    proofs = build_all_proofs(model_hash)
-    proof_results = {}
+    proofs = build_all_proofs(state.structural.model_hash)
+    proof_results: dict[str, object] = {}
     for req_id, script in proofs.items():
-        result = verify_proof(script, model_hash)
+        result = verify_proof(script, state.structural.model_hash)
         proof_results[req_id] = result
-        status = result.status.value
-        print(f"  Proof {req_id}: {status} ({len(script.lemmas)} lemmas)")
+        print(f"  Proof {req_id}: {result.status.value} ({len(script.lemmas)} lemmas)")
         if result.status != ProofStatus.VERIFIED:
             print(f"    FAILURE: {result.failure_summary}")
 
-    # ── Stage 3: NUMERICALLY_SIMULATED ───────────────────────────
-    stage = LifecycleStage.NUMERICALLY_SIMULATED
-    emit_stage_activity(rtm_ds, "NumericalSimulation")
+    return SymbolicResult(
+        sym_result=sym_result, sym_meta=sym_meta,
+        proofs=proofs, proof_results=proof_results,
+    )
+
+
+# ── Stage 3: NUMERICALLY_SIMULATED ───────────────────────────────────
+def run_stage_3_numerical(state: PipelineState) -> NumericalResult:
+    assert state.structural is not None, "Stage 3 requires Stage 1 result"
+    emit_stage_activity(state.ds, "NumericalSimulation")
     print("\n[Stage 3] Running numerical simulations...")
-    step_result, step_meta = compute_backend.run_step_response(params)
+    params = state.structural.params
+
+    step_result, step_meta = state.compute_backend.run_step_response(params)
     step_summary = step_result.summary()
     print(f"  Step response: settling={step_summary['settling_time_s']:.1f}s, "
           f"final_error={step_summary['final_error_deg']:.4f} deg")
@@ -125,25 +135,43 @@ def run_pipeline(
     print(f"  Peak control torque: {step_summary['peak_control_torque']:.4f} N.m "
           f"(limit: {params['maxTorque']})")
 
-    dist_result, dist_meta = compute_backend.run_disturbance_rejection(params)
+    dist_result, dist_meta = state.compute_backend.run_disturbance_rejection(params)
     dist_summary = dist_result.summary()
-    if compute != "local":
+    if state.compute_name != "local":
         print(f"  Execution captured: host={step_meta.hostname}, "
               f"image={step_meta.image_label or 'n/a'}, "
               f"container={step_meta.container_id or 'n/a'}")
     print(f"  Disturbance rejection: peak_error={dist_summary['peak_error_deg']:.6f} deg")
 
-    # ── Stage 4: EVIDENCE_BOUND ──────────────────────────────────
-    stage = LifecycleStage.EVIDENCE_BOUND
-    emit_stage_activity(rtm_ds, "BindEvidence")
+    return NumericalResult(
+        step_result=step_result, step_meta=step_meta, step_summary=step_summary,
+        dist_result=dist_result, dist_meta=dist_meta, dist_summary=dist_summary,
+    )
+
+
+# ── Stage 4: EVIDENCE_BOUND ──────────────────────────────────────────
+def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
+    assert state.structural is not None, "Stage 4 requires Stage 1 result"
+    assert state.symbolic is not None, "Stage 4 requires Stage 2 result"
+    assert state.numerical is not None, "Stage 4 requires Stage 3 result"
+
+    emit_stage_activity(state.ds, "BindEvidence")
     print("\n[Stage 4] Binding evidence to RDF graph...")
-    ev_graph = graph_for(rtm_ds, "evidence")
+    ev_graph = graph_for(state.ds, "evidence")
     bind_computation_engines(ev_graph)
 
-    # Proof evidence for all 4 requirements — analysis ran on the
-    # selected compute backend; ExecutionMetadata is forwarded to the
-    # binding so the SA-* activity carries prov:atLocation +
-    # prov:wasAssociatedWith for the executor agent.
+    params = state.structural.params
+    model_hash = state.structural.model_hash
+    proofs = state.symbolic.proofs
+    sym_meta = state.symbolic.sym_meta
+    step_result = state.numerical.step_result
+    step_summary = state.numerical.step_summary
+    step_meta = state.numerical.step_meta
+    dist_result = state.numerical.dist_result
+    dist_summary = state.numerical.dist_summary
+    dist_meta = state.numerical.dist_meta
+
+    # Proof evidence for all 4 requirements.
     for req_id, script in proofs.items():
         p_hash = hash_proof(script, model_hash)
         c_hash = hash_evidence(model_hash, proof_hash=p_hash)
@@ -160,7 +188,7 @@ def run_pipeline(
             execution_metadata=sym_meta,
         )
 
-    # Simulation evidence
+    # Simulation evidence for REQ-001, REQ-002.
     sim_hash = hash_simulation(step_result.config.to_dict(), step_summary)
     for req_id, desc in [
         ("REQ-001", f"Step response: settling={step_summary['settling_time_s']:.1f}s, "
@@ -180,7 +208,7 @@ def run_pipeline(
             execution_metadata=step_meta,
         )
 
-    # Disturbance rejection evidence for REQ-004
+    # Disturbance rejection evidence for REQ-004.
     dist_hash = hash_simulation(dist_result.config.to_dict(), dist_summary)
     bind_simulation_evidence(
         ev_graph,
@@ -194,99 +222,111 @@ def run_pipeline(
         execution_metadata=dist_meta,
     )
 
-    print(f"  Evidence artifacts created: {len(list(ev_graph.subjects()))} nodes "
+    evidence_node_count = len(list(ev_graph.subjects()))
+    print(f"  Evidence artifacts created: {evidence_node_count} nodes "
           f"(written to <adcs:evidence>)")
+    return EvidenceBindingResult(evidence_node_count=evidence_node_count)
 
-    # ── Stage 5: RTM_ASSEMBLED ───────────────────────────────────
-    stage = LifecycleStage.RTM_ASSEMBLED
-    emit_stage_activity(rtm_ds, "AssembleRTM")
+
+# ── Stage 5: RTM_ASSEMBLED ───────────────────────────────────────────
+def run_stage_5_assemble_rtm(state: PipelineState) -> None:
+    emit_stage_activity(state.ds, "AssembleRTM")
     print("\n[Stage 5] Assembling RTM...")
     # The Dataset already contains structural + ontology + evidence in
     # their respective named graphs; assembly is a no-op for the runtime
     # path (default_union exposes the merged view to queries).
-    rtm = rtm_ds
-
-    ev_issues = validate_evidence_completeness(rtm)
+    ev_issues = validate_evidence_completeness(state.ds)
     if ev_issues:
         print(f"  Evidence gaps: {ev_issues}")
     else:
         print(f"  Evidence completeness: PASS (all requirements have evidence)")
 
-    export_rtm(rtm, OUTPUT_DIR / "rtm_pre_attestation.ttl")
+    export_rtm(state.ds, OUTPUT_DIR / "rtm_pre_attestation.ttl")
     print(f"  Pre-attestation RTM exported to output/rtm_pre_attestation.{{ttl,trig}}")
 
-    # ── Stage 6: ATTESTATION ─────────────────────────────────────
-    if not skip_attestation:
-        stage = LifecycleStage.ATTESTATION
-        emit_stage_activity(rtm_ds, "Attest")
-        print("\n[Stage 6] Human attestation...")
 
-        adequacy_statements = {
-            "REQ-002": ("Energy-based momentum bound is conservative. "
-                        "Reaction wheel model adequate for peak momentum estimation."),
-            "REQ-003": ("Linearized stability analysis via Routh-Hurwitz is adequate. "
-                        "Nonlinear effects are second-order for small angles."),
-            "REQ-004": ("Linearized gravity gradient model adequate for GEO orbit. "
-                        "Higher-order terms negligible at geostationary altitude."),
-        }
-        sufficiency_statements = {
-            "REQ-002": "Symbolic bound and simulation both confirm peak momentum well below 4.0 N.m.s.",
-            "REQ-003": ("Routh-Hurwitz proof confirms asymptotic stability for all positive J, Kp, Kd. "
-                        "Numerical eigenvalues confirm margins exceed -0.010 rad/s on all axes."),
-            "REQ-004": ("Gravity gradient torques are micro-Nm at GEO, orders of magnitude below "
-                        "0.1 N.m actuator capacity. Simulation confirms negligible pointing impact."),
-        }
+# ── Stage 6: ATTESTATION ─────────────────────────────────────────────
+def run_stage_6_attestation(state: PipelineState) -> AttestationStageResult:
+    if state.skip_attestation:
+        return AttestationStageResult(attestation_uris=None)
 
-        # REQ-001: explicit DECLINATION — settling time 262s exceeds 120s requirement.
-        # Emitted as a well-formed attestation with outcome=earl:failed so the
-        # closure-rule suite can validate against an audit-complete graph.
-        from traceability.attestation import OUTCOME_FAILED
-        print(f"\n  REQ-001: ATTESTATION DECLINED")
-        print(f"    Settling time {step_summary['settling_time_s']:.0f}s exceeds 120s requirement.")
-        print(f"    Action: retune gains (Kp: {params['Kp']:.0f}->4, Kd: {params['Kd']:.0f}->30) and re-verify.")
-        if auto_attest:
+    assert state.structural is not None and state.numerical is not None, (
+        "Stage 6 requires Stages 1 + 3"
+    )
+    emit_stage_activity(state.ds, "Attest")
+    print("\n[Stage 6] Human attestation...")
+
+    params = state.structural.params
+    step_summary = state.numerical.step_summary
+
+    adequacy_statements = {
+        "REQ-002": ("Energy-based momentum bound is conservative. "
+                    "Reaction wheel model adequate for peak momentum estimation."),
+        "REQ-003": ("Linearized stability analysis via Routh-Hurwitz is adequate. "
+                    "Nonlinear effects are second-order for small angles."),
+        "REQ-004": ("Linearized gravity gradient model adequate for GEO orbit. "
+                    "Higher-order terms negligible at geostationary altitude."),
+    }
+    sufficiency_statements = {
+        "REQ-002": "Symbolic bound and simulation both confirm peak momentum well below 4.0 N.m.s.",
+        "REQ-003": ("Routh-Hurwitz proof confirms asymptotic stability for all positive J, Kp, Kd. "
+                    "Numerical eigenvalues confirm margins exceed -0.010 rad/s on all axes."),
+        "REQ-004": ("Gravity gradient torques are micro-Nm at GEO, orders of magnitude below "
+                    "0.1 N.m actuator capacity. Simulation confirms negligible pointing impact."),
+    }
+
+    print(f"\n  REQ-001: ATTESTATION DECLINED")
+    print(f"    Settling time {step_summary['settling_time_s']:.0f}s exceeds 120s requirement.")
+    print(f"    Action: retune gains (Kp: {params['Kp']:.0f}->4, Kd: {params['Kd']:.0f}->30) and re-verify.")
+    if state.auto_attest:
+        request_attestation(
+            state.ds, "REQ-001", state.engineer_name,
+            auto_attest=True,
+            model_adequacy=(
+                "Step-response simulation is adequate for evaluating pointing-"
+                "accuracy settling time at this point in the lifecycle."
+            ),
+            evidence_sufficiency=(
+                f"Evidence is sufficient to conclude REQ-001 is NOT yet satisfied: "
+                f"settling time {step_summary['settling_time_s']:.0f}s exceeds the "
+                f"120s requirement. Action item: retune gains "
+                f"(Kp: {params['Kp']:.0f}->4, Kd: {params['Kd']:.0f}->30) and re-verify."
+            ),
+            outcome=OUTCOME_FAILED,
+        )
+
+    for req_id in ["REQ-002", "REQ-003", "REQ-004"]:
+        if state.auto_attest:
             request_attestation(
-                rtm, "REQ-001", engineer_name,
+                state.ds, req_id, state.engineer_name,
                 auto_attest=True,
-                model_adequacy=(
-                    "Step-response simulation is adequate for evaluating pointing-"
-                    "accuracy settling time at this point in the lifecycle."
-                ),
-                evidence_sufficiency=(
-                    f"Evidence is sufficient to conclude REQ-001 is NOT yet satisfied: "
-                    f"settling time {step_summary['settling_time_s']:.0f}s exceeds the "
-                    f"120s requirement. Action item: retune gains "
-                    f"(Kp: {params['Kp']:.0f}->4, Kd: {params['Kd']:.0f}->30) and re-verify."
-                ),
-                outcome=OUTCOME_FAILED,
+                model_adequacy=adequacy_statements[req_id],
+                evidence_sufficiency=sufficiency_statements[req_id],
             )
+        else:
+            request_attestation(state.ds, req_id, state.engineer_name)
 
-        # Attest REQ-002, REQ-003, REQ-004 with earl:passed
-        for req_id in ["REQ-002", "REQ-003", "REQ-004"]:
-            if auto_attest:
-                request_attestation(
-                    rtm, req_id, engineer_name,
-                    auto_attest=True,
-                    model_adequacy=adequacy_statements[req_id],
-                    evidence_sufficiency=sufficiency_statements[req_id],
-                )
-            else:
-                request_attestation(rtm, req_id, engineer_name)
+    return AttestationStageResult(attestation_uris=None)
 
-    # ── Stage 6.5: VALIDATE CLOSURE RULES ────────────────────────
-    emit_stage_activity(rtm_ds, "ValidateShapes")
+
+# ── Stage 6.5: VALIDATE CLOSURE RULES ────────────────────────────────
+def run_stage_6_5_validate_closure(state: PipelineState) -> ClosureRuleResult:
+    emit_stage_activity(state.ds, "ValidateShapes")
     print("\n[Stage 6.5] Validating closure-rule suite...")
-    report = validate_closure_rules(rtm_ds, skip_reverification=False)
+    report = validate_closure_rules(state.ds, skip_reverification=False)
     for line in report.summary_lines():
         print(f"  {line}")
-    # We surface violations but do not fail the pipeline by default —
-    # the audit module (Phase H) renders a structured report. CI can opt
-    # into hard-fail behavior by checking `report.conforms`.
+    # Violations are surfaced but do not fail the pipeline by default —
+    # the audit module renders a structured report. CI can opt into
+    # hard-fail behaviour by checking `report.conforms`.
+    return ClosureRuleResult(report=report)
 
-    # ── Stage 7a: AUDIT TRACE ────────────────────────────────────
-    emit_stage_activity(rtm_ds, "AuditTrace")
+
+# ── Stage 7a: AUDIT TRACE ────────────────────────────────────────────
+def run_stage_7a_audit(state: PipelineState) -> AuditStageResult:
+    emit_stage_activity(state.ds, "AuditTrace")
     print("\n[Stage 7a] Auditing forward / backward / bidirectional traceability...")
-    audit_report = run_audit(rtm_ds)
+    audit_report = run_audit(state.ds)
     print(f"  {audit_report.forward.summary()}")
     print(f"  {audit_report.backward.summary()}")
     bidirect = audit_report.bidirectional()
@@ -301,37 +341,81 @@ def run_pipeline(
             print(f"  Broken attestations: {len(audit_report.orphans.attestations_with_broken_refs)}")
     else:
         print("  Orphans: none")
-    emit_audit_graph(rtm_ds, audit_report)
+    emit_audit_graph(state.ds, audit_report)
 
-    # Write a human-readable audit report alongside the RTM export.
     audit_md = OUTPUT_DIR / "audit.md"
     audit_md.parent.mkdir(parents=True, exist_ok=True)
     audit_md.write_text(render_report(audit_report, fmt="md"))
     (OUTPUT_DIR / "audit.csv").write_text(render_report(audit_report, fmt="csv"))
     print(f"  Audit report -> output/audit.md, output/audit.csv")
 
-    # ── Stage 7: REPORTED ────────────────────────────────────────
-    stage = LifecycleStage.REPORTED
-    emit_stage_activity(rtm_ds, "Report")
+    return AuditStageResult(report=audit_report)
+
+
+# ── Stage 7: REPORTED ────────────────────────────────────────────────
+def run_stage_7_report(state: PipelineState) -> ReportStageResult:
+    emit_stage_activity(state.ds, "Report")
     print("\n[Stage 7] Generating reports...")
-    store = get_backend(backend)
+    store = get_backend(state.backend_name)
     print(f"  Backend: {store.describe()}")
-    persisted = store.persist(rtm_ds, OUTPUT_DIR)
+    persisted = store.persist(state.ds, OUTPUT_DIR)
     print(f"  Persisted {len(persisted)} named graphs "
           f"({sum(persisted.values())} triples total)")
 
-    summary = print_rtm_summary(rtm)
+    summary = print_rtm_summary(state.ds)
     print(summary)
+    return ReportStageResult(persisted_graphs=persisted, backend_name=state.backend_name)
 
-    # ── Stage 8: VISUALIZED_AND_INTERROGABLE ─────────────────────
-    stage = LifecycleStage.VISUALIZED_AND_INTERROGABLE
-    emit_stage_activity(rtm_ds, "Interrogate")
+
+# ── Stage 8: VISUALIZED_AND_INTERROGABLE ─────────────────────────────
+def run_stage_8_interrogate(state: PipelineState) -> None:
+    emit_stage_activity(state.ds, "Interrogate")
     print("\n[Stage 8] Visualization and interrogation ready.")
     print("  Use interrogate/explain.py for 'How do you know X?' queries")
     print("  Use interrogate/reproduce.py to re-verify evidence")
     print("  Use interrogate/visualize.py to render the RTM graph")
 
-    return rtm
+
+# ── Orchestrator ─────────────────────────────────────────────────────
+def run_pipeline(
+    *,
+    auto_attest: bool = False,
+    skip_attestation: bool = False,
+    engineer_name: str = "ADCS Engineer",
+    rebuild_ontology: bool = False,
+    backend: str = "local",
+    compute: str = "local",
+) -> Dataset:
+    """Execute the full ADCS lifecycle pipeline.
+
+    Returns the populated Dataset with eight named graphs:
+        <rtm:ontology>, <rtm:plan>, <adcs:structural>, <adcs:context>,
+        <adcs:evidence>, <adcs:attestations>, <adcs:plan-execution>,
+        <adcs:audit>.
+    Default-union is enabled so consumers can query across the union
+    with plain SPARQL.
+    """
+    ds = run_stage_0(rebuild=rebuild_ontology)
+    state = PipelineState(
+        ds=ds,
+        compute_backend=get_compute_backend(compute),
+        engineer_name=engineer_name,
+        auto_attest=auto_attest,
+        skip_attestation=skip_attestation,
+        backend_name=backend,
+        compute_name=compute,
+    )
+    state.structural    = run_stage_1_structural(state)
+    state.symbolic      = run_stage_2_symbolic(state)
+    state.numerical     = run_stage_3_numerical(state)
+    state.evidence      = run_stage_4_bind_evidence(state)
+    run_stage_5_assemble_rtm(state)
+    state.attestation   = run_stage_6_attestation(state)
+    state.closure_rules = run_stage_6_5_validate_closure(state)
+    state.audit         = run_stage_7a_audit(state)
+    state.report        = run_stage_7_report(state)
+    run_stage_8_interrogate(state)
+    return state.ds
 
 
 def main():
