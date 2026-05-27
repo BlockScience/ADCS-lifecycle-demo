@@ -31,8 +31,8 @@ from traceability.rtm import (
     get_unattested_requirements,
     load_base_graph,
     print_rtm_summary,
-    validate_evidence_completeness,
-    validate_structural_completeness,
+    verify_evidence_completeness,
+    verify_structural_completeness,
 )
 
 
@@ -94,7 +94,7 @@ def _build_full_rtm_with_evidence() -> Graph:
 class TestStructuralCompleteness:
     def test_all_requirements_have_satisfy_links(self):
         graph = load_base_graph()
-        issues = validate_structural_completeness(graph)
+        issues = verify_structural_completeness(graph)
         assert issues == [], f"Structural issues: {issues}"
 
 
@@ -113,7 +113,7 @@ class TestEvidenceBinding:
 
     def test_evidence_completeness(self):
         rtm = _build_full_rtm_with_evidence()
-        issues = validate_evidence_completeness(rtm)
+        issues = verify_evidence_completeness(rtm)
         assert issues == [], f"Evidence issues: {issues}"
 
 

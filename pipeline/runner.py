@@ -56,11 +56,11 @@ from traceability.rtm import (
     STRUCTURAL_DIR,
     export_rtm,
     print_rtm_summary,
-    validate_evidence_completeness,
-    validate_structural_completeness,
+    verify_evidence_completeness,
+    verify_structural_completeness,
 )
 from traceability.audit import audit as run_audit, emit_audit_graph, render_report
-from traceability.validation import validate as validate_closure_rules
+from traceability.verification import verify as verify_closure_rules
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
@@ -76,13 +76,13 @@ def run_stage_1_structural(state: PipelineState) -> StructuralResult:
     model_hash = hash_structural_model(struct_graph)
     params = load_params(struct_graph)
 
-    issues = validate_structural_completeness(state.ds)
+    issues = verify_structural_completeness(state.ds)
     if issues:
         print(f"  STRUCTURAL ISSUES: {issues}")
         sys.exit(1)
     print(f"  Model hash: {model_hash[:16]}...")
     print(f"  Parameters loaded: {len(params)}")
-    print(f"  Structural validation: PASS")
+    print(f"  Structural verification: PASS")
 
     print(f"\n  Compute: {state.compute_backend.describe()}")
     return StructuralResult(
@@ -235,7 +235,7 @@ def run_stage_5_assemble_rtm(state: PipelineState) -> None:
     # The Dataset already contains structural + ontology + evidence in
     # their respective named graphs; assembly is a no-op for the runtime
     # path (default_union exposes the merged view to queries).
-    ev_issues = validate_evidence_completeness(state.ds)
+    ev_issues = verify_evidence_completeness(state.ds)
     if ev_issues:
         print(f"  Evidence gaps: {ev_issues}")
     else:
@@ -309,11 +309,16 @@ def run_stage_6_attestation(state: PipelineState) -> AttestationStageResult:
     return AttestationStageResult(attestation_uris=None)
 
 
-# ── Stage 6.5: VALIDATE CLOSURE RULES ────────────────────────────────
-def run_stage_6_5_validate_closure(state: PipelineState) -> ClosureRuleResult:
+# ── Stage 6.5: VERIFY CLOSURE RULES ──────────────────────────────────
+def run_stage_6_5_verify_closure(state: PipelineState) -> ClosureRuleResult:
+    # Step IRI fragment "ValidateShapes" is preserved to keep already-
+    # persisted <adcs:plan-execution> / <adcs:audit> graphs valid. The
+    # function name + banner reflect the verification discipline; the
+    # rdfs:label on the step is updated in pipeline/plan.ttl. The IRI
+    # rename is tracked separately (see WP1 subplan §10 follow-ups).
     emit_stage_activity(state.ds, "ValidateShapes")
-    print("\n[Stage 6.5] Validating closure-rule suite...")
-    report = validate_closure_rules(state.ds, skip_reverification=False)
+    print("\n[Stage 6.5] Verifying closure-rule suite...")
+    report = verify_closure_rules(state.ds, skip_reverification=False)
     for line in report.summary_lines():
         print(f"  {line}")
     # Violations are surfaced but do not fail the pipeline by default —
@@ -411,7 +416,7 @@ def run_pipeline(
     state.evidence      = run_stage_4_bind_evidence(state)
     run_stage_5_assemble_rtm(state)
     state.attestation   = run_stage_6_attestation(state)
-    state.closure_rules = run_stage_6_5_validate_closure(state)
+    state.closure_rules = run_stage_6_5_verify_closure(state)
     state.audit         = run_stage_7a_audit(state)
     state.report        = run_stage_7_report(state)
     run_stage_8_interrogate(state)

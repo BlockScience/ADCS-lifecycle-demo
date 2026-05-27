@@ -23,7 +23,7 @@ from rdflib import Dataset
 if TYPE_CHECKING:
     from compute.base import ComputeBackend, ExecutionMetadata
     from traceability.audit import AuditReport
-    from traceability.validation import ValidationReport
+    from traceability.verification import VerificationReport
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ class AttestationStageResult:
 
 @dataclass(frozen=True)
 class ClosureRuleResult:
-    report: "ValidationReport"
+    report: "VerificationReport"
 
 
 @dataclass(frozen=True)

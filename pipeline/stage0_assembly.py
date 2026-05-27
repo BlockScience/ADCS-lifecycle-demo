@@ -103,9 +103,9 @@ def _print_banner(manifest: dict, *, ontology_triples: int, shape_count: int) ->
           f"{art['subproperty_axioms']} subproperty axioms")
 
     if manifest.get("robot_used"):
-        print("  Validation: ROBOT merge + ELK reasoning + report PASS")
+        print("  Verification: ROBOT merge + ELK reasoning + report PASS")
     else:
-        print("  Validation: Python build (run `make ontology-robot` for ELK + report)")
+        print("  Verification: Python build (run `make ontology-robot` for ELK + report)")
 
     print(f"  Loaded into <rtm:ontology>: {ontology_triples} triples")
     print(f"  Closure-rule suite registered: {shape_count} SHACL shapes")
