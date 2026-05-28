@@ -177,6 +177,17 @@ def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
     dist_summary = state.numerical.dist_summary
     dist_meta = state.numerical.dist_meta
 
+    # WP3 §4.4 — when running under --compute=docker, emit the
+    # rtm:DockerImage entity and pass its IRI to every bind_* call so
+    # every Docker-produced evidence node carries prov:wasDerivedFrom
+    # back to the image. Local compute leaves image_iri=None; no edges
+    # are added and the SHACL DockerEvidenceShape's SPARQL target
+    # filter excludes local activities.
+    image_iri = None
+    if state.compute_name == "docker":
+        image_iri = state.compute_backend.emit_image_node(ev_graph)
+        print(f"  rtm:DockerImage emitted: {image_iri}")
+
     # Proof evidence for all 4 requirements.
     for req_id, script in proofs.items():
         p_hash = hash_proof(script, model_hash)
@@ -192,6 +203,7 @@ def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
             result_summary=f"Symbolic proof: {script.claim}",
             source_file="analysis/build_proofs.py",
             execution_metadata=sym_meta,
+            image_iri=image_iri,
         )
 
     # Simulation evidence for REQ-001, REQ-002.
@@ -212,6 +224,7 @@ def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
             result_summary=desc,
             source_file="analysis/numerical.py",
             execution_metadata=step_meta,
+            image_iri=image_iri,
         )
 
     # Disturbance rejection evidence for REQ-004.
@@ -226,6 +239,7 @@ def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
         result_summary=f"Disturbance rejection: peak_error={dist_summary['peak_error_deg']:.6f} deg",
         source_file="analysis/numerical.py",
         execution_metadata=dist_meta,
+        image_iri=image_iri,
     )
 
     evidence_node_count = len(list(ev_graph.subjects()))

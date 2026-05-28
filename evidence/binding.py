@@ -100,6 +100,7 @@ def bind_proof_evidence(
     source_file: str = "",
     git_commit: str = "",
     execution_metadata: "ExecutionMetadata | None" = None,
+    image_iri: URIRef | None = None,
 ) -> URIRef:
     """Create an rtm:ProofArtifact node in the graph.
 
@@ -138,6 +139,11 @@ def bind_proof_evidence(
     graph.add((act_uri, PROV.wasAssociatedWith, ADCS["SymPyEngine"]))
     _bind_execution_metadata(graph, act_uri, execution_metadata)
 
+    # WP3 §4.4 — Docker-produced evidence derives from a tracked image.
+    # Local-compute runs pass None and skip this edge.
+    if image_iri is not None:
+        graph.add((ev_uri, PROV.wasDerivedFrom, image_iri))
+
     return ev_uri
 
 
@@ -153,6 +159,7 @@ def bind_simulation_evidence(
     source_file: str = "",
     git_commit: str = "",
     execution_metadata: "ExecutionMetadata | None" = None,
+    image_iri: URIRef | None = None,
 ) -> URIRef:
     """Create an rtm:SimulationResult node in the graph.
 
@@ -184,6 +191,10 @@ def bind_simulation_evidence(
     graph.add((act_uri, PROV.used, ADCS[requirement_id]))
     graph.add((act_uri, PROV.wasAssociatedWith, ADCS["ScipyEngine"]))
     _bind_execution_metadata(graph, act_uri, execution_metadata)
+
+    # WP3 §4.4 — Docker-produced evidence derives from a tracked image.
+    if image_iri is not None:
+        graph.add((ev_uri, PROV.wasDerivedFrom, image_iri))
 
     return ev_uri
 
