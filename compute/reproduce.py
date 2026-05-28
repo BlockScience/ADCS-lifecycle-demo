@@ -113,15 +113,28 @@ def rebuild_image_at_ref(
             "from a run made against the github remote."
         )
 
+    # Argv-flag-smuggling guard: git refs come from RDF stores that may
+    # be partly trust-boundary'd. Reject components that could be parsed
+    # as git flags and validate the scheme before shelling out. Pair
+    # with the `--` end-of-options sentinel on each subprocess call.
+    if base.startswith("-") or sha.startswith("-"):
+        raise RuntimeError(
+            f"refusing flag-shaped git ref component: base={base!r} sha={sha!r}"
+        )
+    if not (base.startswith("https://") or base.startswith("ssh://") or base.startswith("git@")):
+        raise RuntimeError(
+            f"refusing non-https/ssh remote URL: {base!r}"
+        )
+
     workdir = workdir or Path(tempfile.mkdtemp(prefix="adcs-reproduce-"))
     try:
         subprocess.run(
-            ["git", "clone", "--quiet", base, str(workdir)],
+            ["git", "clone", "--quiet", "--", base, str(workdir)],
             check=True, capture_output=True, text=True, timeout=120,
         )
         subprocess.run(
-            ["git", "checkout", "--quiet", sha],
-            cwd=str(workdir), check=True, capture_output=True, text=True, timeout=30,
+            ["git", "-C", str(workdir), "checkout", "--quiet", "--", sha],
+            check=True, capture_output=True, text=True, timeout=30,
         )
         # The image tag is throwaway; reproducibility is digest-based.
         tag = f"adcs-reproduce:{sha[:12]}"
