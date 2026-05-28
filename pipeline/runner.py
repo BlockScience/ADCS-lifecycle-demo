@@ -19,6 +19,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import sys
 from enum import Enum
 from pathlib import Path
@@ -431,9 +432,9 @@ def run_stage_7_report(state: PipelineState) -> ReportStageResult:
     return ReportStageResult(persisted_graphs=persisted, backend_name=state.backend_name)
 
 
-# ── Preflight (WP4 c2) ───────────────────────────────────────────────
-def _run_preflight(compute_backend, store_backend) -> None:
-    """Probe both backends; print outcomes; fail-fast with exit 2 on error.
+# ── Preflight (WP4 c2 + c12) ─────────────────────────────────────────
+def _run_preflight(compute_backend, store_backend, txnlog_store=None) -> None:
+    """Probe backends; print outcomes; fail-fast with exit 2 on error.
 
     The preflight runs before Stage 0 so unreachable backends are
     surfaced immediately, not at the last persist step. Honors the
@@ -443,9 +444,11 @@ def _run_preflight(compute_backend, store_backend) -> None:
     from compute.base import ComputeUnavailable
     from pipeline.backends.base import BackendUnavailable
 
-    print("\n[Preflight] Probing compute + storage backends...")
+    print("\n[Preflight] Probing backends...")
     print(f"  Compute: {compute_backend.describe()}")
     print(f"  Storage: {store_backend.describe()}")
+    if txnlog_store is not None:
+        print(f"  Txnlog:  {txnlog_store.describe()}")
 
     failures: list[str] = []
     try:
@@ -461,6 +464,14 @@ def _run_preflight(compute_backend, store_backend) -> None:
     except BackendUnavailable as exc:
         failures.append(f"backend={store_backend.name}: {exc}")
         print(f"  Storage probe: FAIL — {exc}")
+
+    if txnlog_store is not None:
+        try:
+            txnlog_store.probe()
+            print("  Txnlog probe:  PASS")
+        except BackendUnavailable as exc:
+            failures.append(f"txnlog={txnlog_store.name}: {exc}")
+            print(f"  Txnlog probe:  FAIL — {exc}")
 
     if failures:
         print("\n[Preflight] ERROR: one or more backends are unreachable.")
@@ -504,7 +515,13 @@ def run_pipeline(
     # story doesn't degrade silently at Stage 7.
     compute_backend = get_compute_backend(compute)
     store_backend = get_backend(backend)
-    _run_preflight(compute_backend, store_backend)
+    # WP4 c12 — optional txnlog store (CouchDB) as the fourth service.
+    # Off by default; opt-in via ADCS_TXNLOG_ENABLED=1.
+    txnlog_store = None
+    if os.environ.get("ADCS_TXNLOG_ENABLED", "0") == "1":
+        from pipeline.backends.txnlog import TxnLogBackend
+        txnlog_store = TxnLogBackend()
+    _run_preflight(compute_backend, store_backend, txnlog_store)
 
     # WP4 c6 — organizational auspices loaded from env (defaults
     # urn:adcs:org:local-operator for both).
@@ -530,6 +547,7 @@ def run_pipeline(
         compute_name=compute,
         operating_org_iri=str(auspices.operating_iri),
         hosting_org_iri=str(auspices.hosting_iri),
+        txnlog_store=txnlog_store,
     )
     state.structural    = run_stage_1_structural(state)
     state.symbolic      = run_stage_2_symbolic(state)
