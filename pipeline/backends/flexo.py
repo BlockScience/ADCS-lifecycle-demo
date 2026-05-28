@@ -120,6 +120,19 @@ class FlexoBackend:
                 f"Flexo at {self.url} is unreachable: {exc}"
             ) from exc
 
+    # --- Record URI (WP4 c4) ---------------------------------------------
+
+    def record_uri(self, layer: str) -> URIRef | None:
+        """IRI for the Flexo branch where this layer's graph lives.
+
+        Layer name maps 1:1 to branch name (see `_branch_id`). Returns
+        urn:adcs:flexo:<org>/<repo>/<branch> as a stable, joinable IRI
+        consumers can resolve back to a Flexo REST path.
+        """
+        # Layer-name → branch-name. The layer string IS the branch name
+        # for the named graphs the backend persists (see persist()).
+        return URIRef(f"urn:adcs:flexo:{self.org}/{self.repo}/{layer}")
+
     # --- Auth -------------------------------------------------------------
 
     def _login(self, client: httpx.Client) -> str:

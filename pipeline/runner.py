@@ -187,6 +187,14 @@ def run_stage_4_bind_evidence(state: PipelineState) -> EvidenceBindingResult:
     if state.compute_name == "docker":
         image_iri = state.compute_backend.emit_image_node(ev_graph)
         print(f"  rtm:DockerImage emitted: {image_iri}")
+        # WP4 c4 — when a remote-store backend is in use (Flexo / Fuseki),
+        # attach rtm:flexoRecord to the image so consumers can find the
+        # storage location of this image's record across remotes.
+        from ontology.prefixes import RTM as _RTM
+        flexo_record = state.store_backend.record_uri("evidence")
+        if flexo_record is not None:
+            ev_graph.add((image_iri, _RTM.flexoRecord, flexo_record))
+            print(f"  rtm:flexoRecord: {flexo_record}")
 
     # Proof evidence for all 4 requirements.
     for req_id, script in proofs.items():

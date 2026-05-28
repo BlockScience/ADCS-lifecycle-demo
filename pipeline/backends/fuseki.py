@@ -47,6 +47,16 @@ class FuskeiBackend:
             return (self.user, self.password)
         return None
 
+    def record_uri(self, layer: str) -> URIRef | None:
+        """IRI for the Fuseki graph where this layer's data lives.
+
+        Returns urn:adcs:fuseki:<url-encoded-base>/<layer> as a stable
+        identifier consumers can resolve back to a graph store URL.
+        """
+        from urllib.parse import quote
+        base = quote(self.url, safe="")
+        return URIRef(f"urn:adcs:fuseki:{base}/{layer}")
+
     def probe(self) -> None:
         """HEAD the dataset endpoint to verify Fuseki is reachable."""
         try:

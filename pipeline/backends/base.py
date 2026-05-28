@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from rdflib import Dataset
+from rdflib import Dataset, URIRef
 
 
 class BackendUnavailable(RuntimeError):
@@ -41,6 +41,24 @@ class StoreBackend(Protocol):
         rather than discovered at the last stage. Implementations should
         be cheap (target seconds, not minutes) and report concrete causes
         (HTTP status, missing path, missing credentials).
+        """
+        ...
+
+    def record_uri(self, layer: str) -> URIRef | None:
+        """Stable IRI for the location where this layer's graph lives.
+
+        Used by WP4 to attach `rtm:flexoRecord` to `rtm:DockerImage`
+        nodes so consumers can resolve "where in the storage backend
+        does this image's record live?" via standard PROV traversal.
+
+        Implementations:
+          - LocalBackend  : returns None (no remote IRI)
+          - FlexoBackend  : returns urn:adcs:flexo:<org>/<repo>/<branch>
+          - FuskeiBackend : returns urn:adcs:fuseki:<host>/<dataset>/<branch>
+
+        `layer` is a named-graph key from ontology.prefixes.NAMED_GRAPHS
+        (e.g. "evidence", "attestations"); the implementation may map
+        it to the backend-specific identifier (branch, container, etc.).
         """
         ...
 

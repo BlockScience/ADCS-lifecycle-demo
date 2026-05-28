@@ -217,6 +217,30 @@ def test_flexo_backend_describe_reflects_token_origin():
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
+# record_uri (WP4 c4) — backend-specific URI for "where does this layer live?"
+# ---------------------------------------------------------------------------
+
+def test_local_backend_record_uri_returns_none():
+    """LocalBackend has no remote IRI; rtm:flexoRecord is omitted."""
+    assert LocalBackend().record_uri("evidence") is None
+
+
+def test_flexo_backend_record_uri_shape():
+    """FlexoBackend.record_uri(layer) → urn:adcs:flexo:<org>/<repo>/<layer>."""
+    backend = FlexoBackend(url="http://flexo.test", org="adcs-demo", repo="lifecycle")
+    assert str(backend.record_uri("evidence")) == "urn:adcs:flexo:adcs-demo/lifecycle/evidence"
+    assert str(backend.record_uri("attestations")) == "urn:adcs:flexo:adcs-demo/lifecycle/attestations"
+
+
+def test_fuseki_backend_record_uri_shape():
+    """FuskeiBackend.record_uri encodes the base URL + layer name."""
+    backend = FuskeiBackend(url="http://fuseki.test/adcs")
+    uri = str(backend.record_uri("evidence"))
+    assert uri.startswith("urn:adcs:fuseki:")
+    assert uri.endswith("/evidence")
+
+
+# ---------------------------------------------------------------------------
 # Probe (WP4 §4.1) — preflight reachability checks
 # ---------------------------------------------------------------------------
 
