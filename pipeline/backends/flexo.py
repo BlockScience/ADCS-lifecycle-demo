@@ -51,9 +51,13 @@ from pipeline.dataset import triples_by_graph
 
 
 # Mapping from named-graph IRI suffix to Flexo branch ID.
-# Keeps branch IDs short and human-readable.
-def _branch_id(graph_iri: str) -> str:
-    return graph_iri.rstrip("/").rsplit("/", 1)[-1]
+# Keeps branch IDs short and human-readable. When FLEXO_BRANCH_PREFIX
+# is set (WP4 c14), every branch name is prefixed; enables
+# "each run becomes a cert/<id> snapshot" workflows without forcing
+# the pattern on the default single-canonical-state run.
+def _branch_id(graph_iri: str, prefix: str = "") -> str:
+    base = graph_iri.rstrip("/").rsplit("/", 1)[-1]
+    return f"{prefix}{base}" if prefix else base
 
 
 class FlexoBackend:
@@ -84,6 +88,11 @@ class FlexoBackend:
         self.timeout = timeout
         # Preflight probe is fast by design; separate, shorter timeout.
         self.probe_timeout = float(os.environ.get("FLEXO_PROBE_TIMEOUT", "10"))
+        # WP4 c14 — optional branch prefix for multi-run isolation
+        # (e.g. cert/2026-06-12-001/). Default empty preserves the
+        # single-canonical-state behavior; set FLEXO_BRANCH_PREFIX or
+        # pass branch_prefix= to scope branches per run.
+        self.branch_prefix = os.environ.get("FLEXO_BRANCH_PREFIX", "")
         self._client: httpx.Client | None = None
 
     # --- Preflight -------------------------------------------------------
@@ -127,11 +136,13 @@ class FlexoBackend:
 
         Layer name maps 1:1 to branch name (see `_branch_id`). Returns
         urn:adcs:flexo:<org>/<repo>/<branch> as a stable, joinable IRI
-        consumers can resolve back to a Flexo REST path.
+        consumers can resolve back to a Flexo REST path. Honors the
+        configured branch prefix (WP4 c14).
         """
         # Layer-name → branch-name. The layer string IS the branch name
         # for the named graphs the backend persists (see persist()).
-        return URIRef(f"urn:adcs:flexo:{self.org}/{self.repo}/{layer}")
+        branch = f"{self.branch_prefix}{layer}" if self.branch_prefix else layer
+        return URIRef(f"urn:adcs:flexo:{self.org}/{self.repo}/{branch}")
 
     # --- Auth -------------------------------------------------------------
 
@@ -251,7 +262,7 @@ class FlexoBackend:
             self._ensure_branch(client, token, "master")
 
             for graph_iri, count in counts.items():
-                branch = _branch_id(graph_iri)
+                branch = _branch_id(graph_iri, prefix=self.branch_prefix)
                 self._ensure_branch(client, token, branch, base="master")
                 self._load_graph(client, token, branch,
                                  ds.graph(URIRef(graph_iri)))

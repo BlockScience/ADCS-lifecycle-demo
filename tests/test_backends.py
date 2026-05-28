@@ -232,6 +232,16 @@ def test_flexo_backend_record_uri_shape():
     assert str(backend.record_uri("attestations")) == "urn:adcs:flexo:adcs-demo/lifecycle/attestations"
 
 
+def test_flexo_backend_branch_prefix_applies(monkeypatch):
+    """WP4 c14 — FLEXO_BRANCH_PREFIX shapes branch names + record_uri."""
+    monkeypatch.setenv("FLEXO_BRANCH_PREFIX", "cert/2026-06-12-001/")
+    backend = FlexoBackend(url="http://flexo.test", org="adcs-demo", repo="lifecycle")
+    assert backend.branch_prefix == "cert/2026-06-12-001/"
+    assert str(backend.record_uri("evidence")) == (
+        "urn:adcs:flexo:adcs-demo/lifecycle/cert/2026-06-12-001/evidence"
+    )
+
+
 def test_fuseki_backend_record_uri_shape():
     """FuskeiBackend.record_uri encodes the base URL + layer name."""
     backend = FuskeiBackend(url="http://fuseki.test/adcs")
