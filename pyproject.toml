@@ -31,3 +31,11 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Default pytest run skips opt-in marker groups. CI opts in explicitly:
+#   uv run pytest -m live      — Flexo MMS round-trip
+#   uv run pytest -m network   — W3C / external vocab fetches (reserved)
+addopts = "-m 'not live and not network'"
+markers = [
+    "live: opt-in tests that talk to a live external service (Flexo MMS today; Fuseki later). Require credentials and network — skipped by default; opt in with `-m live`.",
+    "network: opt-in tests that fetch from external resources (W3C vocabularies, GitHub raw content). Reserved — no tests today. Skipped by default; opt in with `-m network`.",
+]

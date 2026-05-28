@@ -1,22 +1,24 @@
 """Phase J — opt-in live Flexo test.
 
-Skips cleanly when there is no reachable Flexo instance. When the
-demo is configured against a live Flexo (remote starforge via
-FLEXO_TOKEN, or local Compose at FLEXO_URL=http://localhost:8080),
-this test runs the full pipeline with --backend=flexo and verifies
-that data lands by querying the loaded branches back.
-
-Run explicitly:
+Marked `@pytest.mark.live`. The default `uv run pytest` invocation
+filters this out via `-m 'not live and not network'` in pyproject.toml
+(WP2 §4.B). Opt in explicitly:
 
     # Against the remote starforge collaboration target:
     export FLEXO_TOKEN="eyJhbGci..."
-    uv run pytest tests/test_flexo_live.py -v
+    uv run pytest -m live -v
 
     # Against a local Compose stack:
     export FLEXO_URL=http://localhost:8080
     export FLEXO_AUTH_URL=http://localhost:8082
     unset FLEXO_TOKEN
-    uv run pytest tests/test_flexo_live.py -v
+    uv run pytest -m live -v
+
+When `-m live` is requested but credentials / connectivity are absent,
+the tests **fail loudly** rather than skipping — the marker is the
+opt-in signal, and a silent skip when opted-in would hide infra
+breakage. Set `FLEXO_TOKEN` (or a reachable Compose stack) before
+invoking.
 """
 
 from __future__ import annotations
@@ -37,12 +39,13 @@ FLEXO_PASS = os.environ.get("FLEXO_PASS", "password1")
 FLEXO_ORG = os.environ.get("FLEXO_ORG", "adcs-demo")
 FLEXO_REPO = os.environ.get("FLEXO_REPO", "lifecycle")
 
+pytestmark = pytest.mark.live
+
 
 def _resolve_token() -> str | None:
     """Return a working bearer token, or None if no auth path succeeds."""
     if FLEXO_TOKEN:
         return FLEXO_TOKEN
-    # Fall back to local-Compose login
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(f"{FLEXO_AUTH_URL}/login", auth=(FLEXO_USER, FLEXO_PASS))
@@ -53,30 +56,15 @@ def _resolve_token() -> str | None:
     return None
 
 
-def _flexo_reachable() -> bool:
-    """Quick HEAD check to decide whether to skip live tests."""
-    try:
-        with httpx.Client(timeout=5.0) as client:
-            r = client.head(FLEXO_URL)
-            return r.status_code < 500
-    except httpx.RequestError:
-        return False
-
-
-pytestmark = pytest.mark.skipif(
-    not (_resolve_token() and _flexo_reachable()),
-    reason=(
-        f"No Flexo target reachable (URL={FLEXO_URL}, "
-        f"token={'set' if FLEXO_TOKEN else 'unset'}). "
-        "Set FLEXO_TOKEN (remote) or run a local Compose stack to enable."
-    ),
-)
-
-
 @pytest.fixture(scope="module")
 def token() -> str:
     t = _resolve_token()
-    assert t, "_resolve_token should have produced a token by skipif"
+    if not t:
+        pytest.fail(
+            "live tests requested (`-m live`) but no Flexo credentials "
+            f"available. Set FLEXO_TOKEN (current: {'set' if FLEXO_TOKEN else 'unset'}) "
+            f"or run a local Compose stack at FLEXO_AUTH_URL={FLEXO_AUTH_URL}."
+        )
     return t
 
 
