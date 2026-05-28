@@ -1,7 +1,7 @@
 # =============================================================================
 # AUTO-GENERATED ARTIFACT — DO NOT EDIT DIRECTLY
 #
-# Built 2026-05-14T03:02:09Z by scripts/build_ontology.py from:
+# Built 2026-05-28T00:26:44Z by scripts/build_ontology.py from:
 #   - ontology/rtm-edit.ttl
 #   - ontology/sysml_term_map.csv (SysMLv2 equivalences)
 #   - ontology/imports/*.ttl (validation only; full MIREOT merge is
@@ -25,7 +25,7 @@
 
 rtm: a owl:Ontology ;
     dcterms:description """Thin application ontology assembling PROV-O, EARL,
-        OntoGSN, P-PLAN, OSLC RM/QM, and the openCAESAR SysMLv2 OWL rendering.
+        OntoGSN, P-PLAN, OSLC RM/QM, and the OMG SysMLv2 OWL rendering.
         Contributes convenience handles, content-addressing properties, and
         the closure-rule suite. Introduces no novel epistemic vocabulary —
         adequacy and sufficiency are gsn:Assumption and gsn:Justification.""" ;

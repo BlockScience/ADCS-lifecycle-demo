@@ -121,6 +121,37 @@ def test_exported_trig_preserves_named_graphs():
     assert not missing, f"TriG export missing named graphs: {missing}"
 
 
+def test_query_named_graph_scopes_to_layer(pipeline_dataset):
+    """The helper restricts a query to one named graph; the same query
+    over the union sees more triples (because other layers contribute)."""
+    from pipeline.dataset import query_named_graph
+
+    layer_rows = list(query_named_graph(
+        pipeline_dataset, "attestations",
+        "SELECT (COUNT(?s) AS ?n) WHERE { ?s ?p ?o }",
+    ))
+    layer_count = int(layer_rows[0][0])
+    union_rows = list(pipeline_dataset.query(
+        "SELECT (COUNT(?s) AS ?n) WHERE { ?s ?p ?o }",
+    ))
+    union_count = int(union_rows[0][0])
+    assert 0 < layer_count < union_count, (
+        f"Expected attestations graph ({layer_count} triples) to be a "
+        f"strict subset of the union ({union_count} triples)."
+    )
+
+
+def test_query_named_graph_rejects_unknown_layer(pipeline_dataset):
+    """The helper raises KeyError for unknown layer names."""
+    from pipeline.dataset import query_named_graph
+
+    with pytest.raises(KeyError, match="Unknown named-graph layer"):
+        query_named_graph(
+            pipeline_dataset, "nonexistent",
+            "SELECT * WHERE { ?s ?p ?o }",
+        )
+
+
 def test_exported_ttl_remains_flat_union():
     """output/rtm.ttl should still be a flat Turtle file (back-compat for
     consumers that expect a single graph)."""

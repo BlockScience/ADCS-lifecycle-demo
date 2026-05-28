@@ -33,10 +33,10 @@ from rdflib.namespace import RDF, XSD
 
 from ontology.prefixes import ADCS, EARL, G_ATTESTATIONS, G_EVIDENCE, GSN, PROV, RTM
 from pipeline.runner import run_pipeline
-from traceability.validation import (
+from traceability.verification import (
     ReverificationMismatch,
     ShapeViolation,
-    validate,
+    verify,
 )
 
 
@@ -61,7 +61,7 @@ def _has_shape_violation(violations: list[ShapeViolation], shape_substring: str)
 # ---------------------------------------------------------------------------
 
 def test_nominal_pipeline_passes_all_shapes(nominal_dataset):
-    report = validate(nominal_dataset, skip_reverification=False)
+    report = verify(nominal_dataset, skip_reverification=False)
     assert report.conforms, (
         f"Nominal pipeline fails closure rules:\n{chr(10).join(report.summary_lines())}"
     )
@@ -96,7 +96,7 @@ def test_attestation_missing_justification_fails(nominal_dataset):
     # Also remove the inContextOf link to that node
     att_g.remove((ADCS["ATT-REQ-003"], GSN.inContextOf, sufficiency))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "sufficiency")
 
@@ -111,7 +111,7 @@ def test_evidence_missing_content_hash_fails(nominal_dataset):
     for o in list(ev_g.objects(ev, RTM.contentHash)):
         ev_g.remove((ev, RTM.contentHash, o))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "contentHash")
 
@@ -127,7 +127,7 @@ def test_gsn_assumption_empty_statement_fails(nominal_dataset):
         att_g.remove((adequacy, GSN.statement, o))
     att_g.add((adequacy, GSN.statement, Literal("")))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "gsn:statement")
 
@@ -142,7 +142,7 @@ def test_activity_without_agent_fails(nominal_dataset):
     plan_exec = ds.graph(URIRef("http://example.org/adcs-demo/graph/plan-execution"))
     plan_exec.add((rogue, RDF.type, PROV.Activity))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "wasAssociatedWith")
 
@@ -157,7 +157,7 @@ def test_forward_traceability_fails_when_attestation_removed(nominal_dataset):
     for s, p, o in list(att_g.triples((att, None, None))):
         att_g.remove((s, p, o))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "Forward-traceability")
 
@@ -174,7 +174,7 @@ def test_backward_traceability_fails_when_addressing_removed(nominal_dataset):
     for o in list(ev_g.objects(ev, RTM.addresses)):
         ev_g.remove((ev, RTM.addresses, o))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "Backward-traceability")
 
@@ -192,7 +192,7 @@ def test_plan_activity_without_corresponds_step_fails(nominal_dataset):
                    Literal("2026-05-14T00:00:00Z", datatype=XSD.dateTime)))
     plan_exec.add((rogue, PROV.wasAssociatedWith, ADCS["agent/pipeline-runner"]))
 
-    report = validate(ds, skip_reverification=True)
+    report = verify(ds, skip_reverification=True)
     assert not report.conforms
     assert _has_shape_violation(report.shape_violations, "correspondsToStep")
 
@@ -201,8 +201,8 @@ def test_plan_activity_without_corresponds_step_fails(nominal_dataset):
 
 def test_reverification_returns_no_mismatches_on_nominal(nominal_dataset):
     """Re-running every proof should produce hashes identical to those stored."""
-    from traceability.validation import validate_reverification
-    mismatches = validate_reverification(nominal_dataset)
+    from traceability.verification import verify_reverification
+    mismatches = verify_reverification(nominal_dataset)
     assert mismatches == [], (
         f"Re-verification mismatches on nominal: {mismatches}"
     )

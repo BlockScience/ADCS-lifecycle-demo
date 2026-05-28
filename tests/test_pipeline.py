@@ -21,6 +21,24 @@ class TestStages:
             check_gate(LifecycleStage.STRUCTURAL_DEFINED, LifecycleStage.REPORTED)
 
 
+class TestPipelineState:
+    def test_activity_to_stage_map_covers_known_steps(self):
+        """Every step name emitted by the pipeline maps to a stage."""
+        from pipeline.state import PipelineState
+        from traceability.plan_execution import STEP_NAMES
+        from rdflib import Dataset
+
+        state = PipelineState(
+            ds=Dataset(),
+            compute_backend=None,  # type: ignore[arg-type]
+            engineer_name="test",
+        )
+        # Stage 0 (OntologyAssembly) is emitted by stage0_assembly; all
+        # other STEP_NAMES are emitted by pipeline.runner stages 1-8.
+        missing = STEP_NAMES - set(state.activity_to_stage)
+        assert not missing, f"Step names without stage map: {missing}"
+
+
 class TestPipelineEndToEnd:
     def test_auto_pipeline(self):
         """Full pipeline with auto-attestation."""

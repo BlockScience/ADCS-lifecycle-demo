@@ -68,6 +68,28 @@ def load_into(ds: Dataset, layer: str, ttl_path: str | Path) -> int:
     return len(g) - before
 
 
+def query_named_graph(ds: Dataset, layer: str, sparql: str, **bindings):
+    """Run a SPARQL query scoped to a single named graph.
+
+    Use this when the query is intentionally layer-scoped (e.g. "count
+    attestations only"). The default query path — `ds.query(sparql)` —
+    walks the union view because the runtime constructs Datasets with
+    `default_union=True`; use that when the query is meant to join
+    across named graphs.
+
+    `bindings` are forwarded as initBindings.
+
+    Raises KeyError if `layer` is not a known named-graph name.
+    """
+    if layer not in NAMED_GRAPHS:
+        raise KeyError(
+            f"Unknown named-graph layer {layer!r}. "
+            f"Valid layers: {sorted(NAMED_GRAPHS)}"
+        )
+    g = ds.graph(URIRef(NAMED_GRAPHS[layer]))
+    return g.query(sparql, initBindings=bindings)
+
+
 def triples_by_graph(ds: Dataset) -> dict[str, int]:
     """Return {graph_iri: triple_count} for every populated named graph."""
     counts: dict[str, int] = {}

@@ -60,7 +60,7 @@ def __(mo):
     | Layer        | Vocabulary                           | Role                                                     |
     | ------------ | ------------------------------------ | -------------------------------------------------------- |
     | W3C / IETF   | `prov:`, `dcterms:`, `earl:`, `sh:`  | Provenance + assertion + outcome + SHACL closure         |
-    | OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model (aliased to openCAESAR OWL rendering)   |
+    | OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model (aliased to OMG SysMLv2 OWL rendering)  |
     | Community    | `gsn:`, `p-plan:`                    | Assurance argument structure + declarative process model |
     | Tool interop | `oslc_rm:`, `oslc_qm:`               | Aliases for DOORS Next / Jama / RQM                      |
 
@@ -586,7 +586,7 @@ def __(mo, model_hash, proofs, proof_results, step_summary, dist_summary, params
     from evidence.binding import bind_proof_evidence, bind_simulation_evidence, bind_computation_engines
     from evidence.hashing import hash_proof as _hp, hash_evidence, hash_simulation
     from pipeline.dataset import graph_for, triples_by_graph
-    from traceability.rtm import load_base_dataset, validate_evidence_completeness
+    from traceability.rtm import load_base_dataset, verify_evidence_completeness
 
     # rtm_graph is now an rdflib.Dataset with named graphs. Existing
     # SPARQL queries still work via default_union; new audit / closure-
@@ -623,7 +623,7 @@ def __(mo, model_hash, proofs, proof_results, step_summary, dist_summary, params
         source_file="analysis/numerical.py",
     )
 
-    _issues = validate_evidence_completeness(rtm_graph)
+    _issues = verify_evidence_completeness(rtm_graph)
     _counts = triples_by_graph(rtm_graph)
 
     _count_rows = "\n".join(
@@ -647,7 +647,7 @@ def __(mo, model_hash, proofs, proof_results, step_summary, dist_summary, params
         "PROV-O provenance chain. The model hash ensures that if the model "
         "changes (Act 8), all evidence must be re-produced and re-verified."
     )
-    return rtm_graph, bind_proof_evidence, bind_simulation_evidence, bind_computation_engines, hash_evidence, hash_simulation, load_base_dataset, validate_evidence_completeness
+    return rtm_graph, bind_proof_evidence, bind_simulation_evidence, bind_computation_engines, hash_evidence, hash_simulation, load_base_dataset, verify_evidence_completeness
 
 
 @app.cell(hide_code=True)
@@ -779,9 +779,9 @@ def __(mo):
 
 @app.cell(hide_code=True)
 def __(rtm_graph, mo):
-    from traceability.validation import validate as _validate
+    from traceability.verification import verify as _verify
 
-    _report = _validate(rtm_graph, skip_reverification=False)
+    _report = _verify(rtm_graph, skip_reverification=False)
 
     _summary = "\n".join("    " + l for l in _report.summary_lines())
     mo.md(
@@ -1580,8 +1580,8 @@ def __(mo):
     multiple distinct actions inside one Act.
 
     **Prologue.** Assembled the integration ontology from PROV-O + EARL
-    + OntoGSN + P-PLAN + OSLC RM/QM + the openCAESAR SysMLv2 OWL
-    rendering. No novel epistemic vocabulary in `rtm:` — adequacy and
+    + OntoGSN + P-PLAN + OSLC RM/QM + the OMG SysMLv2 OWL rendering.
+    No novel epistemic vocabulary in `rtm:` — adequacy and
     sufficiency are `gsn:Assumption` / `gsn:Justification` per the
     Hawkins–Habli ACP categorization.
 
@@ -1675,7 +1675,7 @@ def __(mo):
 
     | Layer | Technology | Purpose |
     |-------|-----------|---------|
-    | Structural Model | SysMLv2 RDF/Turtle (aliased to openCAESAR) | Requirements, design elements, satisfy links |
+    | Structural Model | SysMLv2 RDF/Turtle (aliased to OMG SysMLv2 OWL) | Requirements, design elements, satisfy links |
     | Model Changes | SPARQL UPDATE | Modify parameters, trigger hash invalidation |
     | Evidence Layer | PROV-O + EARL + OntoGSN + thin `rtm:` glue | Hash-bound evidence + GSN-structured attestation |
     | Process Model | P-PLAN | Declarative pipeline; one `p-plan:Step` per stage |

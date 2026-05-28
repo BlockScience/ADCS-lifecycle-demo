@@ -6,7 +6,7 @@ Bidirectional requirements traceability for a satellite Attitude Determination
 and Control System (ADCS), demonstrating the full lifecycle from SysMLv2
 structural specification through symbolic analysis, numerical simulation, and
 human expert attestation. The RTM is held as an `rdflib.Dataset` of named
-graphs, validated by a SHACL closure-rule suite, audited forward and backward
+graphs, verified by a SHACL closure-rule suite, audited forward and backward
 independently, and exportable to disk, to a Flexo MMS instance, or to bare
 Apache Jena Fuseki.
 
@@ -28,13 +28,13 @@ integration layer over established standards.
 
 ## Architecture
 
-Integration ontology assembled from W3C and OMG standards plus the openCAESAR
-SysMLv2 OWL rendering:
+Integration ontology assembled from W3C and OMG standards plus the OMG SysMLv2
+OWL rendering:
 
 | Layer        | Vocabulary                           | Role                                                              |
 | ------------ | ------------------------------------ | ----------------------------------------------------------------- |
 | W3C / IETF   | `prov:`, `dcterms:`, `earl:`, `sh:`  | Provenance + assertion + outcome + SHACL closure                  |
-| OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model + requirements (aliased to openCAESAR via owl:equivalentClass) |
+| OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model + requirements (aliased to the OMG SysMLv2 OWL rendering via owl:equivalentClass) |
 | Community    | `gsn:`, `p-plan:`                    | Assurance argument structure + declarative process model         |
 | Tool interop | `oslc_rm:`, `oslc_qm:`               | Aliases for DOORS Next / Jama / RQM                              |
 | Local glue   | `rtm:`                               | Convenience subclasses + content-addressing properties only      |
@@ -79,9 +79,9 @@ uv run pytest -v                                # 166 tests
 [Stage 2]   Symbolic Analysis         — SymPy: inertia, eigenvalues, stability proofs
 [Stage 3]   Numerical Simulation      — scipy: step response + disturbance rejection
 [Stage 4]   Evidence Binding          — emit hashed evidence into <adcs:evidence>
-[Stage 5]   RTM Assembled             — validate evidence completeness
+[Stage 5]   RTM Assembled             — verify evidence completeness
 [Stage 6]   Human Attestation         — emit attestations into <adcs:attestations>
-[Stage 6.5] Validate Closure-Rule Suite — 9 SHACL shapes + runtime re-verification
+[Stage 6.5] Verify Closure-Rule Suite — 9 SHACL shapes + runtime re-verification
 [Stage 7a]  Audit Trace               — forward / backward / bidirectional + coverage matrix
 [Stage 7]   Generate Reports          — persist via backend, write output/audit.{md,csv}
 [Stage 8]   Interrogate               — explain / reproduce / visualize ready
@@ -102,11 +102,27 @@ uv run pytest -v                                # 166 tests
     OK  PROV-O      1146 triples,  7 terms referenced
   SysMLv2 equivalence axioms: 9
   Local rtm: integration glue: 13 subclass + 7 subproperty axioms
-  Validation: Python build (run `make ontology-robot` for ELK + report)
+  Verification: Python build (run `make ontology-robot` for ELK + report)
   Loaded into <rtm:ontology>: 317 triples
   Closure-rule suite registered: 13 SHACL shapes
 ─────────────────────────────────────────────────────────────────
 ```
+
+## Pipeline architecture
+
+The orchestrator threads a `PipelineState` object through per-stage
+free functions (`run_stage_<N>_<name>(state) -> <StageResult>` in
+[`pipeline/runner.py`](pipeline/runner.py)). Each stage returns a
+frozen dataclass that the next stage reads via `state.<prior>.<field>`,
+so the runner is the call sequence plus narration — the per-stage
+logic stands alone and is unit-testable. The `activity_to_stage`
+table on `PipelineState` maps `p-plan` step IRI fragments to stage
+numbers; `interrogate.rerun` consumes the same mapping to translate
+closure-rule violations into the stages that must re-run.
+
+All CLIs are Typer apps; `--help` is auto-rendered with rich
+formatting. Tests use `typer.testing.CliRunner`
+([`tests/test_cli.py`](tests/test_cli.py)).
 
 ## Interrogation
 
@@ -137,6 +153,26 @@ REQ-003: "The closed-loop ADCS shall be asymptotically stable..."
     Model adequacy: "Linearized stability analysis via Routh-Hurwitz..."
     Evidence sufficiency: "Routh-Hurwitz proof confirms asymptotic..."
 ```
+
+### Rerun plan from a verification report
+
+When the Stage 6.5 SHACL suite or the runtime re-verification finds a
+mismatch, [`interrogate/rerun.py`](interrogate/rerun.py) walks
+`prov:wasGeneratedBy` -> `p-plan:correspondsToStep` to translate the
+violations into the dedup'd ordered set of pipeline stages that must
+re-run. SHACL violations on structural / human-judgement nodes
+(attestations, etc.) are reported separately — no stage re-run can
+fix them.
+
+```bash
+uv run python -m interrogate.rerun                    # markdown to stdout
+uv run python -m interrogate.rerun --requirement REQ-003
+uv run python -m interrogate.rerun --format json
+```
+
+Exit code 0 = clean, 1 = stages or structural violations present, 2
+= input file not found. The Stage 6.5 banner in the runner also
+prints a short rerun-plan summary when violations are present.
 
 ## Requirements
 
@@ -287,9 +323,9 @@ is data-driven from that manifest.
 - [`structural/`](structural/) — SysMLv2 RDF (satellite.ttl, parameters.ttl)
 - [`analysis/`](analysis/) — SymPy proofs + scipy simulation
 - [`evidence/`](evidence/) — content hashing + RDF binding (with execution provenance)
-- [`traceability/`](traceability/) — RTM assembly, queries, attestation, validation, audit
-- [`pipeline/`](pipeline/) — stage orchestrator + Dataset helpers + plan.ttl + backends
-- [`interrogate/`](interrogate/) — explain / reproduce / visualize
+- [`traceability/`](traceability/) — RTM assembly, queries, attestation, verification, audit
+- [`pipeline/`](pipeline/) — stage orchestrator (PipelineState + per-stage functions), Dataset helpers + `query_named_graph`, plan.ttl, backends
+- [`interrogate/`](interrogate/) — explain / reproduce / visualize / rerun
 - [`compute/`](compute/) — Local + Docker compute backends + Dockerfile
 - [`flexo/`](flexo/) — Flexo MMS provisioning scripts + live integration docs
 - [`scripts/`](scripts/) — `fetch_imports.py` + `build_ontology.py`

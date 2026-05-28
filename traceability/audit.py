@@ -179,6 +179,11 @@ SELECT ?att ?req ?ev WHERE {
 # ---------------------------------------------------------------------------
 # Direction checks — INDEPENDENT
 # ---------------------------------------------------------------------------
+# NOTE: every ds.query(...) below is INTENTIONALLY UNION-SCOPED — the
+# audit joins across <adcs:structural>, <adcs:evidence>, and
+# <adcs:attestations>, relying on Dataset(default_union=True) so the
+# queries omit GRAPH clauses. For single-layer queries use
+# pipeline.dataset.query_named_graph instead.
 
 def forward_trace(ds: Dataset) -> DirectionResult:
     """For every ADCS requirement, confirm there exists at least one

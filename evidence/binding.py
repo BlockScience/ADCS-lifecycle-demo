@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, Any
 from rdflib import BNode, Graph, Literal, URIRef
 from rdflib.namespace import RDF, RDFS, XSD
 
-from ontology.prefixes import ADCS, PROV, RTM, bind_prefixes
+from ontology.prefixes import ADCS, P_PLAN, PROV, RTM, bind_prefixes
+from traceability.plan_execution import step_iri
 
 if TYPE_CHECKING:
     from compute.base import ExecutionMetadata
@@ -52,11 +53,11 @@ def _bind_execution_metadata(
     if metadata is None:
         return
 
-    # Executor agent — a SoftwareAgent representing the runtime
-    # environment that actually ran the analysis.
-    suffix = (metadata.container_id or metadata.hostname or "unknown").replace(":", "-")
-    executor = URIRef(f"urn:adcs:executor:{suffix}")
-    location = URIRef(f"urn:adcs:location:{metadata.location_kind}:{metadata.hostname or 'unknown'}")
+    # Executor + location IRI construction lives on ExecutionMetadata so
+    # WP3 / WP4 can reuse the same shapes when introducing new evidence
+    # types (rtm:DockerImage, three-remote URIs).
+    executor = metadata.executor_uri()
+    location = metadata.location_uri()
 
     graph.add((activity_uri, PROV.atLocation, location))
     graph.add((activity_uri, PROV.wasAssociatedWith, executor))
@@ -129,8 +130,10 @@ def bind_proof_evidence(
     if git_commit:
         graph.add((ev_uri, RTM.gitCommit, Literal(git_commit)))
 
-    # Activity node
+    # Activity node — typed and linked to its pipeline step so
+    # interrogate.rerun can walk evidence -> activity -> step -> stage.
     graph.add((act_uri, RDF.type, RTM.SymbolicAnalysis))
+    graph.add((act_uri, P_PLAN.correspondsToStep, step_iri("SymbolicAnalysis")))
     graph.add((act_uri, PROV.used, ADCS[requirement_id]))
     graph.add((act_uri, PROV.wasAssociatedWith, ADCS["SymPyEngine"]))
     _bind_execution_metadata(graph, act_uri, execution_metadata)
@@ -174,8 +177,10 @@ def bind_simulation_evidence(
     if git_commit:
         graph.add((ev_uri, RTM.gitCommit, Literal(git_commit)))
 
-    # Activity node
+    # Activity node — typed and linked to its pipeline step so
+    # interrogate.rerun can walk evidence -> activity -> step -> stage.
     graph.add((act_uri, RDF.type, RTM.NumericalSimulation))
+    graph.add((act_uri, P_PLAN.correspondsToStep, step_iri("NumericalSimulation")))
     graph.add((act_uri, PROV.used, ADCS[requirement_id]))
     graph.add((act_uri, PROV.wasAssociatedWith, ADCS["ScipyEngine"]))
     _bind_execution_metadata(graph, act_uri, execution_metadata)

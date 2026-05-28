@@ -220,7 +220,14 @@ ORDER BY ?ev
 # ---------------------------------------------------------------------------
 
 def query_to_dicts(graph: Graph, sparql: str) -> list[dict[str, str]]:
-    """Execute a SPARQL query and return results as list of dicts."""
+    """Execute a SPARQL query and return results as list of dicts.
+
+    Note: pass a Dataset to walk the union view (uses
+    ``default_union=True``); pass a single named-graph view (obtained
+    via ``pipeline.dataset.graph_for`` or ``query_named_graph``) to
+    restrict to one layer. The queries shipped in this module are
+    written assuming the union view.
+    """
     results = graph.query(sparql, initNs=_INIT_NS)
     rows = []
     for row in results:

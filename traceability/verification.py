@@ -1,13 +1,19 @@
-"""Stage 6.5 — closure-rule validation via SHACL + runtime checks.
+"""Stage 6.5 — closure-rule verification via SHACL + runtime checks.
 
 Runs the 9 SHACL shapes in ontology/rtm_shapes.ttl against the assembled
 Dataset, plus the runtime re-verification closure (#10) that re-hashes
 every rtm:ProofArtifact against its source.
 
-Returns a ValidationReport with conformance status and a list of
+Returns a VerificationReport with conformance status and a list of
 violations / re-verification mismatches. The runner can either fail
 hard on violations or continue (default: continue, surface violations
 in the report).
+
+Naming discipline (WP1 §4.4): SHACL conformance and hash-matching are
+**verification** (automated, fully specified). The pyshacl API itself
+keeps its upstream name (`pyshacl.validate`); the demo's own wrappers
+use `verify`. Engineer attestation (human judgement) is separately
+named in `traceability.attestation`.
 """
 
 from __future__ import annotations
@@ -40,7 +46,7 @@ class ReverificationMismatch:
 
 
 @dataclass
-class ValidationReport:
+class VerificationReport:
     conforms: bool
     shape_violations: list[ShapeViolation] = field(default_factory=list)
     reverification_mismatches: list[ReverificationMismatch] = field(default_factory=list)
@@ -49,11 +55,11 @@ class ValidationReport:
     def summary_lines(self) -> list[str]:
         lines = []
         if self.conforms:
-            lines.append("Closure-rule validation: PASS")
+            lines.append("Closure-rule verification: PASS")
             lines.append(f"  SHACL shapes:        {len(self.shape_violations)} violations")
             lines.append(f"  Re-verification:     {len(self.reverification_mismatches)} mismatches")
         else:
-            lines.append("Closure-rule validation: FAIL")
+            lines.append("Closure-rule verification: FAIL")
             if self.shape_violations:
                 lines.append(f"  SHACL violations ({len(self.shape_violations)}):")
                 for v in self.shape_violations[:10]:
@@ -105,7 +111,7 @@ def _parse_shape_violations(report_graph: Graph) -> list[ShapeViolation]:
     return out
 
 
-def validate_shacl(ds: Dataset, shapes_path: Path = SHAPES_PATH) -> tuple[bool, list[ShapeViolation], str]:
+def verify_shacl(ds: Dataset, shapes_path: Path = SHAPES_PATH) -> tuple[bool, list[ShapeViolation], str]:
     """Run pyshacl against `ds` with the closure-rule shapes."""
     shapes = Graph()
     shapes.parse(shapes_path, format="turtle")
@@ -118,7 +124,7 @@ def validate_shacl(ds: Dataset, shapes_path: Path = SHAPES_PATH) -> tuple[bool, 
     return conforms, violations, results_text
 
 
-def validate_reverification(ds: Dataset) -> list[ReverificationMismatch]:
+def verify_reverification(ds: Dataset) -> list[ReverificationMismatch]:
     """Closure rule #10 — re-run every ProofArtifact and check its proofHash.
 
     Imports reproduce_proof lazily so this module doesn't pull in scipy /
@@ -147,15 +153,15 @@ def validate_reverification(ds: Dataset) -> list[ReverificationMismatch]:
     return mismatches
 
 
-def validate(ds: Dataset, *, shapes_path: Path = SHAPES_PATH,
-             skip_reverification: bool = False) -> ValidationReport:
+def verify(ds: Dataset, *, shapes_path: Path = SHAPES_PATH,
+           skip_reverification: bool = False) -> VerificationReport:
     """Run the full closure-rule suite (SHACL + re-verification) and
     return a structured report."""
-    conforms, violations, text = validate_shacl(ds, shapes_path)
+    conforms, violations, text = verify_shacl(ds, shapes_path)
     mismatches: list[ReverificationMismatch] = []
     if not skip_reverification:
         try:
-            mismatches = validate_reverification(ds)
+            mismatches = verify_reverification(ds)
         except Exception as exc:
             # Re-verification can fail for environmental reasons; surface
             # as a Violation rather than crashing the pipeline.
@@ -167,9 +173,17 @@ def validate(ds: Dataset, *, shapes_path: Path = SHAPES_PATH,
                 severity="sh:Warning",
             ))
     overall = conforms and not mismatches
-    return ValidationReport(
+    return VerificationReport(
         conforms=overall,
         shape_violations=violations,
         reverification_mismatches=mismatches,
         shape_results_text=text,
     )
+
+
+# Back-compat aliases — remove in a follow-up PR after WP3 lands.
+# Existing external scripts and notebooks may import these names.
+ValidationReport = VerificationReport
+validate = verify
+validate_shacl = verify_shacl
+validate_reverification = verify_reverification

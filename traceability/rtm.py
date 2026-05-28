@@ -92,10 +92,11 @@ def assemble_rtm(
     return rtm
 
 
-def validate_structural_completeness(graph: Graph) -> list[str]:
-    """Check that every ADCS requirement has at least one satisfy link.
+def verify_structural_completeness(graph: Graph) -> list[str]:
+    """Verify that every ADCS requirement has at least one satisfy link.
 
-    Returns a list of issues (empty if all good).
+    Returns a list of issues (empty if all good). Automated, fully
+    specified — verification per the WP1 §4.4 discipline.
     """
     issues = []
     reqs = query_to_dicts(graph, ADCS_REQUIREMENTS)
@@ -117,10 +118,11 @@ def validate_structural_completeness(graph: Graph) -> list[str]:
     return issues
 
 
-def validate_evidence_completeness(graph: Graph) -> list[str]:
-    """Check that every ADCS requirement has associated evidence.
+def verify_evidence_completeness(graph: Graph) -> list[str]:
+    """Verify that every ADCS requirement has associated evidence.
 
-    Returns a list of issues (empty if all good).
+    Returns a list of issues (empty if all good). Automated, fully
+    specified — verification per the WP1 §4.4 discipline.
     """
     issues = []
     reqs = query_to_dicts(graph, ADCS_REQUIREMENTS)

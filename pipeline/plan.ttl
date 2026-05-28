@@ -57,8 +57,8 @@
     rdfs:comment "Dataset after stage 6 with attestations in <adcs:attestations>." .
 
 <http://example.org/ontology/rtm#plan/var/ValidationReport> a p-plan:Variable ;
-    rdfs:label "Validation Report" ;
-    rdfs:comment "Closure-rule suite validation results (SHACL + runtime checks)." .
+    rdfs:label "Verification Report" ;
+    rdfs:comment "Closure-rule suite verification results (SHACL + runtime checks). IRI fragment 'ValidationReport' preserved to keep already-persisted <adcs:plan-execution> graphs valid; rename tracked separately." .
 
 <http://example.org/ontology/rtm#plan/var/AuditReport> a p-plan:Variable ;
     rdfs:label "Audit Report" ;
@@ -132,7 +132,7 @@
         + qualified association) into <adcs:attestations>.""" .
 
 <http://example.org/ontology/rtm#plan/step/ValidateShapes> a p-plan:Step ;
-    rdfs:label "Stage 6.5 — Validate Closure-Rule Suite" ;
+    rdfs:label "Stage 6.5 — Verify Closure-Rule Suite" ;
     p-plan:isStepOfPlan <http://example.org/ontology/rtm#plan/AdcsLifecycle> ;
     p-plan:isPrecededBy <http://example.org/ontology/rtm#plan/step/Attest> ;
     p-plan:hasInputVar  <http://example.org/ontology/rtm#plan/var/AttestedRTM> ;

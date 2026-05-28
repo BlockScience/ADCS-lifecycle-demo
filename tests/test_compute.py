@@ -46,6 +46,44 @@ def test_factory_rejects_unknown():
         get_compute_backend("not-a-backend")
 
 
+class TestExecutionMetadataURIs:
+    """ExecutionMetadata.executor_uri / location_uri — §4.3 of WP1.
+
+    The IRI shapes are preserved byte-for-byte from the prior
+    evidence/binding.py construction so the runtime RDF output does
+    not drift.
+    """
+
+    def test_executor_uri_prefers_container_id(self):
+        md = ExecutionMetadata(
+            location_kind="docker", hostname="myhost", container_id="abc123",
+        )
+        assert str(md.executor_uri()) == "urn:adcs:executor:abc123"
+
+    def test_executor_uri_falls_back_to_hostname(self):
+        md = ExecutionMetadata(location_kind="local", hostname="myhost")
+        assert str(md.executor_uri()) == "urn:adcs:executor:myhost"
+
+    def test_executor_uri_unknown_when_no_identity(self):
+        md = ExecutionMetadata(location_kind="local", hostname="")
+        assert str(md.executor_uri()) == "urn:adcs:executor:unknown"
+
+    def test_executor_uri_replaces_colons(self):
+        """container_id may contain colons from a digest; URN keeps clean."""
+        md = ExecutionMetadata(
+            location_kind="docker", hostname="h", container_id="sha256:71a59f23",
+        )
+        assert str(md.executor_uri()) == "urn:adcs:executor:sha256-71a59f23"
+
+    def test_location_uri_shape(self):
+        md = ExecutionMetadata(location_kind="docker", hostname="myhost")
+        assert str(md.location_uri()) == "urn:adcs:location:docker:myhost"
+
+    def test_location_uri_unknown_host(self):
+        md = ExecutionMetadata(location_kind="local", hostname="")
+        assert str(md.location_uri()) == "urn:adcs:location:local:unknown"
+
+
 def test_local_compute_runs_and_returns_metadata():
     """LocalCompute returns an ExecutionMetadata stamped with local
     hostname and Python version."""

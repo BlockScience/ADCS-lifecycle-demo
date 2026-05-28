@@ -29,7 +29,7 @@ project's contribution is the assembly, not new terms.
 | Namespace                            | Role                                             |
 | ------------------------------------ | ------------------------------------------------ |
 | `prov:`                              | Provenance spine                                 |
-| `sysml:` ↔ `omg-sysml:`              | SysMLv2; local prefix aliased to openCAESAR     |
+| `sysml:` ↔ `omg-sysml:`              | SysMLv2; local prefix aliased to OMG SysMLv2 OWL |
 | `earl:`                              | Assertion + outcome lattice + mode               |
 | `gsn:` (OntoGSN)                     | Goal / Strategy / Solution / Assumption / Justification |
 | `p-plan:`                            | Process model (one Step per pipeline stage)      |
@@ -66,11 +66,13 @@ IRIs and the `NAMED_GRAPHS` dict are in [`ontology/prefixes.py`](ontology/prefix
   remote-emulation with PROV provenance capture) + `Dockerfile`
 - `evidence/` — content hashing + RDF evidence binding (with execution metadata)
 - `traceability/` — RTM assembly, SPARQL queries, attestation (GSN-based),
-  closure-rule validation, audit module
-- `pipeline/` — stage orchestrator, `dataset.py` (named-graph helpers),
+  closure-rule verification (`verification.py`), audit module
+- `pipeline/` — stage orchestrator (`PipelineState` + per-stage free
+  functions in `runner.py`; `state.py` defines the typed result records),
+  `dataset.py` (named-graph helpers incl. `query_named_graph`),
   `stage0_assembly.py`, `plan.ttl`, `backends/` (Local / Flexo / Fuseki)
 - `flexo/` — Flexo MMS provisioning scripts + integration docs
-- `interrogate/` — explain / reproduce / visualize
+- `interrogate/` — explain / reproduce / visualize / rerun
 - `scripts/` — `fetch_imports.py`, `build_ontology.py`
 - `tests/` — 166 tests (alignment, named graphs, shape suite, audit,
   backends, compute, live Flexo opt-in)
@@ -82,11 +84,82 @@ suite; Stage 7a runs the audit. Every stage emits a `p-plan:Activity`
 into `<adcs:plan-execution>` so the construction process is itself
 queryable.
 
+### Pipeline state + structured stage results
+
+The orchestrator threads a [`PipelineState`](pipeline/state.py) object
+through per-stage free functions (`run_stage_<N>_<name>(state) ->
+<StageResult>` in [`pipeline/runner.py`](pipeline/runner.py)). Each
+stage returns a frozen dataclass (`StructuralResult`,
+`SymbolicResult`, `NumericalResult`, …) that the next stage reads via
+`state.<prior>.<field>`. The runner's job is narration + the ordered
+call sequence; stage bodies stand alone and are unit-testable.
+
+`PipelineState.activity_to_stage` maps `p-plan` step IRI fragments
+(`STEP_NAMES` in
+[`traceability/plan_execution.py`](traceability/plan_execution.py))
+to stage numbers; [`interrogate/rerun.py`](interrogate/rerun.py)
+keeps a parallel `ACTIVITY_TO_STAGE` table, cross-checked by a unit
+test against `STEP_NAMES`.
+
+## CLI surface
+
+Every CLI in this repo is a Typer app (Click + Rich transitively).
+Pattern per module: `app = typer.Typer(...)` + `@app.command()`
+function + `if __name__ == "__main__": app()`. Existing `uv run python
+-m <module>` invocations and the `[project.scripts] adcs-pipeline`
+console script work unchanged. Choice-validated options use `Enum`
+subclasses so Typer matches the prior argparse `choices=` semantics.
+
+CLIs today:
+
+- `pipeline.runner` — runs the full lifecycle (flags: `--auto`,
+  `--no-attest`, `--engineer`, `--rebuild`, `--backend`, `--compute`).
+- `interrogate.rerun` — translates a verification report into the
+  pipeline stages that must re-run (flags: `--input`,
+  `--requirement`, `--format`).
+
+`interrogate.explain`, `interrogate.reproduce`, `interrogate.visualize`
+are library-only (no CLI entry points). Tests use
+`typer.testing.CliRunner` in [`tests/test_cli.py`](tests/test_cli.py).
+A top-level `adcs` aggregator (`adcs pipeline run`, `adcs interrogate
+rerun`, etc.) is tracked as a follow-up — see
+[issue #5](https://github.com/DynamicalSystemsGroup/ADCS-lifecycle-demo/issues/5).
+
+## Verification vs validation (term discipline)
+
+Strict semantic split across module names, function names, doc
+strings, RDF property labels, log/banner strings, and commit messages:
+
+- **Verification** = automated check whose computation result is
+  fully specified (SHACL conformance, ROBOT/ELK consistency,
+  content-hash matching, completeness checks, HTTP-connectivity
+  probes, triple-count budgets).
+- **Validation** = human judgement with expertise, additional context,
+  and/or interpretation (engineer attestation, adequacy assumption,
+  sufficiency justification).
+
+This breaks with pyshacl's `validate()` convention deliberately —
+upstream APIs keep their names, the demo's own wrappers use the
+discipline. SHACL conformance is wrapped by `traceability.verification.verify`;
+human judgement lives in `traceability.attestation.request_attestation`.
+The split pairs with the longer-standing rule that **evidence does not
+verify requirements; only human attestation does**: evidence and
+verification are both system-internal, attestation is the human
+boundary.
+
+One IRI fragment is intentionally out-of-sync with the discipline:
+`<plan/step/ValidateShapes>` in `pipeline/plan.ttl` is preserved so
+already-persisted `<adcs:plan-execution>` and `<adcs:audit>` graphs
+stay valid. The rdfs:label says "Verify"; the IRI rename is tracked
+separately for a future Flexo migration.
+
 ## Toolchain
 
 - Python 3.12+, managed by `uv` — required
 - `rdflib` for RDF/SPARQL, `sympy` for symbolic math, `scipy` for ODE integration
-- `pyshacl` for closure-rule validation, `httpx` for backend HTTP
+- `pyshacl` for closure-rule verification (the demo's own wrapper is
+  named `verify`; pyshacl's upstream API is `validate` and is wrapped,
+  not renamed), `httpx` for backend HTTP, `typer` for CLI surfaces
 - ProofScript/ProofBuilder pattern reimplemented from gds-proof
 - Docker — optional, for `--compute=docker`
 - OBO ROBOT (Java) — optional, for `make ontology-robot`
