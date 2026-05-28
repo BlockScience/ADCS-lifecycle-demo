@@ -55,6 +55,49 @@ sized to match Flexo MMS branch conventions:
 
 IRIs and the `NAMED_GRAPHS` dict are in [`ontology/prefixes.py`](ontology/prefixes.py).
 
+## Three-remote architecture (WP4)
+
+The demo runs against three remotes + a fourth service. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full picture; one-paragraph
+summary:
+
+- **git** holds code, ontology, Dockerfile.
+- **Flexo** holds RDF named graphs (incl. `rtm:DockerImage` records).
+- **local Docker** is the runtime: image (static, content-addressed)
+  vs container (transient, per-run) vs host (the machine).
+- **transaction-log store** (CouchDB; opt-in via `ADCS_TXNLOG_ENABLED=1`)
+  holds the wire-log JSON for each service invocation.
+
+URI scheme (canonical shapes):
+
+- Image: `urn:adcs:docker-image:<digest>` (`rtm:DockerImage`)
+- Container: `urn:adcs:docker-container:<container-id>` (`rtm:DockerContainer`)
+- Host: `urn:adcs:location:docker:<host>` (`prov:Location`)
+- Executor: `urn:adcs:executor:<id>` (`prov:SoftwareAgent`)
+- Operating org: `urn:adcs:org:local-operator` default (`prov:Organization`)
+- Flexo record: `urn:adcs:flexo:<org>/<repo>/<branch>`
+- Txnlog service: `urn:adcs:service:transaction-log-store`
+
+Standard PROV edges link them: `<container> prov:wasDerivedFrom
+<image>`, `<activity> prov:used <container>`, `<host> rtm:operatedBy
+<hosting-org>` (subPropertyOf prov:wasAttributedTo), `<executor>
+prov:actedOnBehalfOf <operating-org>`. The image carries `rtm:gitRef`
++ `rtm:flexoRecord` for cross-remote linking.
+
+**EARL-wrapped verification outcomes** sit beside human attestation:
+`rtm:ClosureRuleAssertion` (Stage 6.5 SHACL outcome) and
+`rtm:DigestMatchAssertion` (`compute.reproduce` rebuild outcome) are
+both `earl:Assertion` subclasses with `earl:mode = earl:automatic`.
+
+**Preflight gate** probes every configured backend before Stage 0 and
+fails fast on any unreachable remote. Matches WP2's ROBOT-default
+discipline — no silent degrade.
+
+**Six trust queries** in `traceability/queries.py` answer "how can I
+trust this?" — `technical_provenance`, `auspices_chain`,
+`reproducibility_witnesses`, `closure_witnesses`,
+`service_invocations_for`, `trust_summary`.
+
 ## Key directories
 
 - `ontology/` — `rtm-edit.ttl` (source), `rtm.ttl` (built artifact),

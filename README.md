@@ -1,6 +1,7 @@
 # ADCS Lifecycle Demo
 
 **Live demo:** <https://dynamicalsystemsgroup.github.io/ADCS-lifecycle-demo/>
+**Architecture:** see [ARCHITECTURE.md](ARCHITECTURE.md) — the three-remote (git + Flexo + local Docker) + fourth-service (CouchDB txnlog) picture.
 
 Bidirectional requirements traceability for a satellite Attitude Determination
 and Control System (ADCS), demonstrating the full lifecycle from SysMLv2
@@ -9,6 +10,31 @@ human expert attestation. The RTM is held as an `rdflib.Dataset` of named
 graphs, verified by a SHACL closure-rule suite, audited forward and backward
 independently, and exportable to disk, to a Flexo MMS instance, or to bare
 Apache Jena Fuseki.
+
+## Setup
+
+```bash
+# Install deps
+uv sync
+
+# Copy + edit env vars (Flexo token, txnlog opt-in, org auspices)
+cp .env.example .env
+$EDITOR .env
+```
+
+The canonical multi-remote run additionally needs the local txnlog
+store (a CouchDB container) running:
+
+```bash
+tools/start-services.sh    # docker run + db ensure, idempotent
+# ...later
+tools/stop-services.sh     # stop + remove (--purge wipes the volume)
+```
+
+Preflight at the start of every pipeline run probes every configured
+backend (Flexo, Docker daemon, txnlog) and fails fast (exit 2) if
+anything is unreachable. The integration story does not silently
+degrade.
 
 ## Core Principle
 
@@ -66,10 +92,42 @@ across the union without `GRAPH` clauses.
 
 ```bash
 uv sync
-uv run python -m pipeline.runner --auto       # scripted attestation
+uv run python -m pipeline.runner --auto       # local + local (fastest path)
 uv run python -m pipeline.runner               # interactive attestation
 uv run pytest -v                                # default: skips live + network markers
 ```
+
+### Canonical multi-remote run (the architecture's full picture)
+
+After completing **Setup** above and exporting `ADCS_TXNLOG_ENABLED=1`
+(plus `FLEXO_TOKEN`), the canonical run exercises all three remotes
++ the txnlog store:
+
+```bash
+tools/start-services.sh
+export ADCS_TXNLOG_ENABLED=1
+uv run python -m pipeline.runner --auto --backend=flexo --compute=docker
+```
+
+The runner's preflight verifies every backend before Stage 0; if any
+remote is unreachable, the run fails fast (exit 2) with a concrete
+cause. The output `rtm.trig` carries the full provenance chain
+documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+### Reproducibility verification
+
+`compute.reproduce` rebuilds an image at its recorded git ref and
+digest-compares:
+
+```bash
+uv run python -m compute.reproduce \
+    --image-digest sha256:71a59f23... \
+    --from-trig output/rtm.trig
+```
+
+Exit 0 = digest matches; 1 = mismatch; 2 = prerequisite failure.
+Outcome is also recorded as an `rtm:DigestMatchAssertion` in
+`<adcs:audit>`.
 
 ### Tests
 
