@@ -149,6 +149,16 @@ rtm:EvidenceMethod a owl:Class ;
     rdfs:label "Evidence Method" ;
     rdfs:comment "Classification of how an evidence artifact was produced (Analysis / Simulation / FormalProof)." .
 
+rtm:DockerImage a owl:Class ;
+    rdfs:subClassOf prov:Entity ;
+    rdfs:label "Docker container image" ;
+    rdfs:comment """Content-tracked Docker image. Every analysis activity
+        that ran under --compute=docker has its evidence link back to a
+        DockerImage via prov:wasDerivedFrom. The image's identity is
+        rtm:contentHash (the runtime digest); reproducibility is anchored
+        by rtm:dockerfileHash + rtm:buildContextHash + rtm:baseImageDigest
+        which together pin the build inputs.""" .
+
 # =============================================================================
 # Convenience properties — subPropertyOf standard terms, no new axioms
 # =============================================================================
@@ -259,6 +269,28 @@ rtm:resultSummary a owl:DatatypeProperty ;
     rdfs:domain rtm:Evidence ;
     rdfs:range xsd:string ;
     rdfs:label "result summary" .
+
+# -- rtm:DockerImage properties (WP3) ------------------------------------------
+
+rtm:imageLabel a owl:DatatypeProperty ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string ;
+    rdfs:label "Image repo/tag (e.g., adcs-compute:latest)" .
+
+rtm:baseImageDigest a owl:DatatypeProperty ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string ;
+    rdfs:label "Digest of the FROM image resolved at build time" .
+
+rtm:dockerfileHash a owl:DatatypeProperty ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string ;
+    rdfs:label "SHA-256 of the Dockerfile bytes used at build" .
+
+rtm:buildContextHash a owl:DatatypeProperty ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string ;
+    rdfs:label "SHA-256 over a sorted manifest of build-context file hashes" .
 
 # Adequacy and sufficiency are not novel epistemic terms — they map to
 # gsn:Assumption and gsn:Justification (Hawkins-Habli ACP categorization).

@@ -1,7 +1,7 @@
 # =============================================================================
 # AUTO-GENERATED ARTIFACT — DO NOT EDIT DIRECTLY
 #
-# Built 2026-05-28T03:34:21Z by scripts/build_ontology.py from:
+# Built 2026-05-28T16:00:38Z by scripts/build_ontology.py from:
 #   - ontology/rtm-edit.ttl
 #   - ontology/sysml_term_map.csv (SysMLv2 equivalences)
 #   - ontology/imports/*.ttl (validation only; full MIREOT merge is
@@ -66,6 +66,16 @@ rtm:attestationMode a owl:ObjectProperty ;
     rdfs:domain rtm:Attestation ;
     rdfs:subPropertyOf earl:mode .
 
+rtm:baseImageDigest a owl:DatatypeProperty ;
+    rdfs:label "Digest of the FROM image resolved at build time" ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string .
+
+rtm:buildContextHash a owl:DatatypeProperty ;
+    rdfs:label "SHA-256 over a sorted manifest of build-context file hashes" ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string .
+
 rtm:contentHash a owl:DatatypeProperty ;
     rdfs:label "content hash" ;
     rdfs:comment "SHA-256 hash of the evidence artifact content." ;
@@ -77,6 +87,11 @@ rtm:derivedFrom a owl:ObjectProperty ;
     rdfs:comment "Subsystem requirement derived from a parent (system-level) requirement." ;
     rdfs:domain sysml:RequirementDefinition ;
     rdfs:range sysml:RequirementDefinition .
+
+rtm:dockerfileHash a owl:DatatypeProperty ;
+    rdfs:label "SHA-256 of the Dockerfile bytes used at build" ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string .
 
 rtm:evidenceMethod a owl:ObjectProperty ;
     rdfs:label "evidence method" ;
@@ -112,6 +127,11 @@ rtm:hasOutcome a owl:ObjectProperty ;
         a binary verify/not-verify.""" ;
     rdfs:domain rtm:Attestation ;
     rdfs:subPropertyOf earl:outcome .
+
+rtm:imageLabel a owl:DatatypeProperty ;
+    rdfs:label "Image repo/tag (e.g., adcs-compute:latest)" ;
+    rdfs:domain rtm:DockerImage ;
+    rdfs:range xsd:string .
 
 rtm:modelHash a owl:DatatypeProperty ;
     rdfs:label "model hash" ;
@@ -215,6 +235,16 @@ omg-sysml:declaredName a owl:DatatypeProperty .
 omg-sysml:ownedRelationship a owl:ObjectProperty .
 
 omg-sysml:text a owl:DatatypeProperty .
+
+rtm:DockerImage a owl:Class ;
+    rdfs:label "Docker container image" ;
+    rdfs:comment """Content-tracked Docker image. Every analysis activity
+        that ran under --compute=docker has its evidence link back to a
+        DockerImage via prov:wasDerivedFrom. The image's identity is
+        rtm:contentHash (the runtime digest); reproducibility is anchored
+        by rtm:dockerfileHash + rtm:buildContextHash + rtm:baseImageDigest
+        which together pin the build inputs.""" ;
+    rdfs:subClassOf prov:Entity .
 
 rtm:Attestation a owl:Class ;
     rdfs:label "Attestation" ;

@@ -53,19 +53,23 @@ SYSML_LOCAL_NS = "https://www.omg.org/spec/SysML/2.0/"
 # The OMG SysMLv2 OWL rendering's namespace.
 SYSML_OMG_NS = "http://www.omg.org/spec/SysML/20240501/"
 
-# Parsimony gate (WP2 §4.C). rtm: is an integration ontology — it should
-# contribute only convenience handles, hashing properties, and SHACL
-# targets, never new epistemic vocabulary. The gate keeps that promise
-# honest by failing the build if the assembled artifact grows past the
-# budget. The budget is the current size (156 triples) + 200 headroom
-# for WP3's rtm:DockerImage class + property set and other small adds.
-# WP3 will bump this when it lands; bumping is a deliberate act, not a
-# silent drift.
-TRIPLE_BUDGET = 356
+# Parsimony gate (WP2 §4.C, bumped in WP3 §4.8). rtm: is an integration
+# ontology — it should contribute only convenience handles, hashing
+# properties, and SHACL targets, never new epistemic vocabulary. The
+# gate keeps that promise honest by failing the build if the assembled
+# artifact grows past the budget. Bumping is a deliberate act, not
+# silent drift; updates require a rationale comment update too.
+#
+# History:
+#   WP2 set 356 (current 156 + 200 headroom for WP3).
+#   WP3 bumped to 380: rtm:DockerImage class + 4 datatype properties
+#     added +20 triples (now 176); 204 headroom for the SHACL
+#     DockerEvidenceShape (commit 6 of WP3) and future small adds.
+TRIPLE_BUDGET = 380
 TRIPLE_BUDGET_RATIONALE = (
-    "Integration ontology parsimony gate. Current size + 200 headroom. "
-    "Bumped deliberately when a new term class lands (next: WP3 "
-    "rtm:DockerImage). See WP2 subplan §4.C."
+    "Integration ontology parsimony gate. WP3 bumped 356 -> 380 after "
+    "adding rtm:DockerImage class + 4 datatype properties (+20 triples). "
+    "See WP3 subplan §4.8."
 )
 
 

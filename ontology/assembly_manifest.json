@@ -2,15 +2,15 @@
   "artifact": {
     "equivalence_axioms": 9,
     "path": "ontology/rtm.ttl",
-    "sha256": "84851aa28bda6ba9eb1ef637da3caf03ead86bc3da45de14daf937c3c51266ff",
-    "subclass_axioms": 13,
+    "sha256": "b51f0e4bc099bcaeb21fa7e6cd8e076141e391e505dd7c80095ce374dbf7e16b",
+    "subclass_axioms": 14,
     "subproperty_axioms": 7,
-    "total_triples": 156
+    "total_triples": 176
   },
-  "build_time": "2026-05-28T03:34:21Z",
+  "build_time": "2026-05-28T16:00:38Z",
   "edit_source": {
     "path": "ontology/rtm-edit.ttl",
-    "sha256": "85373ea56ed7a7430adaccf55b1fc994ef540f8f6ec095894776e45094b22e58"
+    "sha256": "2bfcf730707c56729b8682a72de84b8a7662227a54b8a96ccc0947c47de8431e"
   },
   "imports": {
     "EARL": {
@@ -104,8 +104,8 @@
     "sha256": "47c34b99c5a4d0bd9e4e9e0d6f945412eb6bec2f3b18b4d0da702cc4a5f0009f"
   },
   "triple_budget": {
-    "headroom": 200,
-    "rationale": "Integration ontology parsimony gate. Current size + 200 headroom. Bumped deliberately when a new term class lands (next: WP3 rtm:DockerImage). See WP2 subplan \u00a74.C.",
-    "value": 356
+    "headroom": 204,
+    "rationale": "Integration ontology parsimony gate. WP3 bumped 356 -> 380 after adding rtm:DockerImage class + 4 datatype properties (+20 triples). See WP3 subplan \u00a74.8.",
+    "value": 380
   }
 }
