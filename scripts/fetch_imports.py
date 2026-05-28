@@ -7,11 +7,11 @@ Turtle into ontology/imports/<name>.ttl.
 The vendored copies are committed to git so demo reproducibility doesn't
 depend on upstream IRIs continuing to resolve.
 
-openCAESAR SysMLv2 OWL is deliberately not vendored here — it is
-distributed via Maven and requires the openCAESAR toolchain to extract.
-The equivalence axioms in rtm-edit.ttl (sourced from sysml_term_map.csv)
-bind to omg-sysml: terms regardless; vendoring the full upstream is
-future work.
+The full OMG SysMLv2 OWL rendering is deliberately not vendored here —
+it is distributed via Maven and requires a separate Java/Maven
+toolchain to extract. The equivalence axioms in rtm-edit.ttl
+(sourced from sysml_term_map.csv) bind to omg-sysml: terms
+regardless; vendoring the full upstream is future work.
 
 Usage:
     uv run python -m scripts.fetch_imports

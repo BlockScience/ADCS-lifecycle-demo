@@ -29,7 +29,7 @@ project's contribution is the assembly, not new terms.
 | Namespace                            | Role                                             |
 | ------------------------------------ | ------------------------------------------------ |
 | `prov:`                              | Provenance spine                                 |
-| `sysml:` ↔ `omg-sysml:`              | SysMLv2; local prefix aliased to openCAESAR     |
+| `sysml:` ↔ `omg-sysml:`              | SysMLv2; local prefix aliased to OMG SysMLv2 OWL |
 | `earl:`                              | Assertion + outcome lattice + mode               |
 | `gsn:` (OntoGSN)                     | Goal / Strategy / Solution / Assumption / Justification |
 | `p-plan:`                            | Process model (one Step per pipeline stage)      |

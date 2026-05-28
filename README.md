@@ -28,13 +28,13 @@ integration layer over established standards.
 
 ## Architecture
 
-Integration ontology assembled from W3C and OMG standards plus the openCAESAR
-SysMLv2 OWL rendering:
+Integration ontology assembled from W3C and OMG standards plus the OMG SysMLv2
+OWL rendering:
 
 | Layer        | Vocabulary                           | Role                                                              |
 | ------------ | ------------------------------------ | ----------------------------------------------------------------- |
 | W3C / IETF   | `prov:`, `dcterms:`, `earl:`, `sh:`  | Provenance + assertion + outcome + SHACL closure                  |
-| OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model + requirements (aliased to openCAESAR via owl:equivalentClass) |
+| OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model + requirements (aliased to the OMG SysMLv2 OWL rendering via owl:equivalentClass) |
 | Community    | `gsn:`, `p-plan:`                    | Assurance argument structure + declarative process model         |
 | Tool interop | `oslc_rm:`, `oslc_qm:`               | Aliases for DOORS Next / Jama / RQM                              |
 | Local glue   | `rtm:`                               | Convenience subclasses + content-addressing properties only      |

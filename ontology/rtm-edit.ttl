@@ -17,8 +17,8 @@
 # Ontology declaration
 #
 # rtm: is an integration ontology. It assembles established upstream
-# vocabularies (PROV-O, EARL, OntoGSN, P-PLAN, OSLC RM/QM, SysMLv2 via
-# openCAESAR) and contributes only:
+# vocabularies (PROV-O, EARL, OntoGSN, P-PLAN, OSLC RM/QM, the OMG
+# SysMLv2 OWL rendering) and contributes only:
 #   (a) convenience subclasses with no new semantics, used as
 #       SHACL/SPARQL handles;
 #   (b) operational content-addressing properties (hashes, source links);
@@ -33,7 +33,7 @@
 rtm: a owl:Ontology ;
     dcterms:title "RTM Integration Ontology" ;
     dcterms:description """Thin application ontology assembling PROV-O, EARL,
-        OntoGSN, P-PLAN, OSLC RM/QM, and the openCAESAR SysMLv2 OWL rendering.
+        OntoGSN, P-PLAN, OSLC RM/QM, and the OMG SysMLv2 OWL rendering.
         Contributes convenience handles, content-addressing properties, and
         the closure-rule suite. Introduces no novel epistemic vocabulary —
         adequacy and sufficiency are gsn:Assumption and gsn:Justification.""" ;
@@ -46,13 +46,13 @@ rtm: a owl:Ontology ;
                 <http://open-services.net/ns/qm#> .
 
 # =============================================================================
-# SysMLv2 binding — equivalence axioms to openCAESAR's OWL rendering
+# SysMLv2 binding — equivalence axioms to the OMG SysMLv2 OWL rendering
 #
-# Authoritative vocabulary used by JPL/OpenMBEE is openCAESAR's SysMLv2 OWL
+# Authoritative vocabulary is the OMG SysMLv2 OWL rendering
 # (`omg-sysml:`). We keep the local `sysml:` prefix in instance data and
 # publish equivalence axioms so reasoners and SysMLv2-aware tooling treat
 # them interchangeably. The mapping is sourced from
-# `ontology/sysml_term_map.csv` and validated by `make ontology`.
+# `ontology/sysml_term_map.csv` and verified by `make ontology`.
 #
 # Each local term is explicitly typed (owl:Class / owl:ObjectProperty /
 # owl:DatatypeProperty) so that OWL parsers (ROBOT, OWL API) can classify

@@ -8,7 +8,7 @@ SHACL targets. Every epistemic concept comes from an imported standard.
 Upstream vocabularies:
 - PROV-O      : provenance spine
 - SysMLv2     : structural model + requirements (local namespace, aliased
-                to the openCAESAR OWL rendering via equivalence axioms)
+                to the OMG SysMLv2 OWL rendering via equivalence axioms)
 - EARL        : assertion pattern + outcome lattice + mode
 - OntoGSN     : Goal / Strategy / Solution / Assumption / Justification / Context
 - P-PLAN      : declarative pipeline plan + step ordering
@@ -33,10 +33,10 @@ OSLC_QM = Namespace("http://open-services.net/ns/qm#")
 
 # Layer 2 — SysMLv2
 # Local namespace used throughout instance data. Equivalence axioms in
-# rtm-edit.ttl bind these terms to the authoritative openCAESAR rendering
-# (omg-sysml:) so JPL/OpenMBEE-aware tooling sees standard SysMLv2.
+# rtm-edit.ttl bind these terms to the OMG SysMLv2 OWL rendering so
+# JPL/OpenMBEE-aware tooling sees standard SysMLv2.
 SYSML = Namespace("https://www.omg.org/spec/SysML/2.0/")
-OMG_SYSML = Namespace("http://www.omg.org/spec/SysML/20240501/")  # openCAESAR alias target
+OMG_SYSML = Namespace("http://www.omg.org/spec/SysML/20240501/")  # OMG SysMLv2 OWL alias target
 
 # Layer 3 — Local integration vocabulary + instance namespaces
 RTM = Namespace("http://example.org/ontology/rtm#")

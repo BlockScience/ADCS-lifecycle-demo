@@ -60,7 +60,7 @@ def __(mo):
     | Layer        | Vocabulary                           | Role                                                     |
     | ------------ | ------------------------------------ | -------------------------------------------------------- |
     | W3C / IETF   | `prov:`, `dcterms:`, `earl:`, `sh:`  | Provenance + assertion + outcome + SHACL closure         |
-    | OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model (aliased to openCAESAR OWL rendering)   |
+    | OMG / SysML  | `sysml:` ↔ `omg-sysml:`              | Structural model (aliased to OMG SysMLv2 OWL rendering)  |
     | Community    | `gsn:`, `p-plan:`                    | Assurance argument structure + declarative process model |
     | Tool interop | `oslc_rm:`, `oslc_qm:`               | Aliases for DOORS Next / Jama / RQM                      |
 
@@ -1580,8 +1580,8 @@ def __(mo):
     multiple distinct actions inside one Act.
 
     **Prologue.** Assembled the integration ontology from PROV-O + EARL
-    + OntoGSN + P-PLAN + OSLC RM/QM + the openCAESAR SysMLv2 OWL
-    rendering. No novel epistemic vocabulary in `rtm:` — adequacy and
+    + OntoGSN + P-PLAN + OSLC RM/QM + the OMG SysMLv2 OWL rendering.
+    No novel epistemic vocabulary in `rtm:` — adequacy and
     sufficiency are `gsn:Assumption` / `gsn:Justification` per the
     Hawkins–Habli ACP categorization.
 
@@ -1675,7 +1675,7 @@ def __(mo):
 
     | Layer | Technology | Purpose |
     |-------|-----------|---------|
-    | Structural Model | SysMLv2 RDF/Turtle (aliased to openCAESAR) | Requirements, design elements, satisfy links |
+    | Structural Model | SysMLv2 RDF/Turtle (aliased to OMG SysMLv2 OWL) | Requirements, design elements, satisfy links |
     | Model Changes | SPARQL UPDATE | Modify parameters, trigger hash invalidation |
     | Evidence Layer | PROV-O + EARL + OntoGSN + thin `rtm:` glue | Hash-bound evidence + GSN-structured attestation |
     | Process Model | P-PLAN | Declarative pipeline; one `p-plan:Step` per stage |
