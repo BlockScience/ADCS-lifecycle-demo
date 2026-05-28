@@ -104,7 +104,7 @@ def test_sysml_term_map_matches_equivalence_axioms_in_artifact():
 
     missing = []
     for row in rows:
-        pair = (f"{sysml_ns}{row['local_term']}", f"{omg_ns}{row['opencaesar_iri']}")
+        pair = (f"{sysml_ns}{row['local_term']}", f"{omg_ns}{row['omg_iri']}")
         if pair not in found_pairs:
             missing.append(row["local_term"])
     assert not missing, f"sysml_term_map.csv rows without matching axioms: {missing}"

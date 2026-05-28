@@ -2,12 +2,12 @@
   "artifact": {
     "equivalence_axioms": 9,
     "path": "ontology/rtm.ttl",
-    "sha256": "60797e07aa5e26d1ddeb3cba5cf4cbac67514d7192e33294147664c198d9021d",
+    "sha256": "98472bdab861e9356764926d7c5b7e8a3a6c58608b66af388deb0acc19bc2843",
     "subclass_axioms": 13,
     "subproperty_axioms": 7,
     "total_triples": 156
   },
-  "build_time": "2026-05-28T02:36:38Z",
+  "build_time": "2026-05-28T02:48:38Z",
   "edit_source": {
     "path": "ontology/rtm-edit.ttl",
     "sha256": "85373ea56ed7a7430adaccf55b1fc994ef540f8f6ec095894776e45094b22e58"
@@ -101,7 +101,7 @@
   "sysml_term_map": {
     "path": "ontology/sysml_term_map.csv",
     "row_count": 9,
-    "sha256": "c2f2a363218df48117f937294002577995e1c17679c067d40734be1bd2fb2747"
+    "sha256": "47c34b99c5a4d0bd9e4e9e0d6f945412eb6bec2f3b18b4d0da702cc4a5f0009f"
   },
   "triple_budget": {
     "headroom": 200,

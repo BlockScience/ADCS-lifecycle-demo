@@ -49,7 +49,8 @@ SYSML_MAP_FILE = ONTOLOGY_DIR / "sysml_term_map.csv"
 
 
 SYSML_LOCAL_NS = "https://www.omg.org/spec/SysML/2.0/"
-SYSML_OPENCAESAR_NS = "http://www.omg.org/spec/SysML/20240501/"
+# The OMG SysMLv2 OWL rendering's namespace.
+SYSML_OMG_NS = "http://www.omg.org/spec/SysML/20240501/"
 
 # Parsimony gate (WP2 §4.C). rtm: is an integration ontology — it should
 # contribute only convenience handles, hashing properties, and SHACL
@@ -126,21 +127,24 @@ def _load_sysml_term_map() -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def _validate_sysml_axioms(edit_graph: Graph, term_map: list[dict[str, str]]) -> list[str]:
-    """Verify every term-map row has the corresponding equivalence axiom in edit_graph."""
+def _verify_sysml_axioms(edit_graph: Graph, term_map: list[dict[str, str]]) -> list[str]:
+    """Verify every term-map row has the corresponding equivalence axiom in
+    edit_graph. Automated, fully specified — verification per the WP1 §4.4
+    discipline (renamed from `_validate_sysml_axioms` in WP2 §4.D since this
+    file is being touched anyway for the CSV column rename)."""
     errors: list[str] = []
     for row in term_map:
         local = URIRef(f"{SYSML_LOCAL_NS}{row['local_term']}")
-        opencaesar = URIRef(f"{SYSML_OPENCAESAR_NS}{row['opencaesar_iri']}")
+        omg = URIRef(f"{SYSML_OMG_NS}{row['omg_iri']}")
         if row["kind"] == "Class":
-            axiom = (local, OWL.equivalentClass, opencaesar)
+            axiom = (local, OWL.equivalentClass, omg)
         elif row["kind"] == "Property":
-            axiom = (local, OWL.equivalentProperty, opencaesar)
+            axiom = (local, OWL.equivalentProperty, omg)
         else:
             errors.append(f"sysml_term_map.csv: unknown kind {row['kind']!r} for {row['local_term']}")
             continue
         if axiom not in edit_graph:
-            errors.append(f"Missing axiom: {row['local_term']} -> {row['opencaesar_iri']} ({row['kind']})")
+            errors.append(f"Missing axiom: {row['local_term']} -> {row['omg_iri']} ({row['kind']})")
     return errors
 
 
@@ -205,7 +209,7 @@ def build() -> int:
 
     # Step 2: validate sysml_term_map against rtm-edit equivalence axioms
     term_map = _load_sysml_term_map()
-    sysml_errors = _validate_sysml_axioms(edit_graph, term_map)
+    sysml_errors = _verify_sysml_axioms(edit_graph, term_map)
     if sysml_errors:
         for e in sysml_errors:
             print(f"  ERROR  {e}", file=sys.stderr)
