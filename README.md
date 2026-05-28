@@ -303,6 +303,45 @@ adcs:SA-REQ-003
     rtm:pythonVersion "3.12.13" .
 ```
 
+### Image as tracked evidence (WP3)
+
+Under `--compute=docker` the demo also promotes the image itself to
+a first-class `rtm:DockerImage` node in `<adcs:evidence>` (not just a
+label on the executor agent). Each Docker-produced evidence node
+declares `prov:wasDerivedFrom <image-iri>`, and a SHACL closure rule
+at Stage 6.5 enforces the link — so the trace can answer "find every
+evidence node produced by image `sha256:…`" instead of only "where
+did this run happen?"
+
+The image node carries six properties:
+
+- `rtm:contentHash` — runtime image digest (`sha256:…`)
+- `rtm:imageLabel` — repo:tag
+- `rtm:baseImageDigest` — `FROM`-image digest resolved at build (may
+  be empty if the base isn't pulled locally; pipeline gracefully degrades)
+- `rtm:dockerfileHash` — SHA-256 of the Dockerfile bytes
+- `rtm:buildContextHash` — SHA-256 over a sorted manifest of build-
+  context file hashes
+- `prov:generatedAtTime` — build timestamp
+
+Reverse lookup helper:
+
+```python
+from rdflib import Dataset
+from traceability.queries import evidence_by_image
+
+ds = Dataset(default_union=True)
+ds.parse("output/rtm.trig", format="trig")
+rows = evidence_by_image(ds, "sha256:92bb8bf18f5f...")
+# -> [{'ev': 'http://example.org/adcs-demo/EV-PROOF-REQ-003',
+#      'type': 'http://example.org/ontology/rtm#ProofArtifact',
+#      'evContentHash': '...', 'modelHash': '...'}, ...]
+```
+
+The notebook Act 9 / 10 narrative (showing the image as a node in
+the rendered trace) + audit-module image surfacing defer to **WP5**
+— WP3 is the backend that makes those narrative passes honest.
+
 ## Toolchain
 
 | What                       | Required?    | Used for                                                 |

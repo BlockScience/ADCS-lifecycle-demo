@@ -47,7 +47,7 @@ sized to match Flexo MMS branch conventions:
 <rtm:plan>            P-PLAN process model
 <adcs:structural>     SysMLv2 instance data
 <adcs:context>        Stable gsn:Context / gsn:Assumption individuals
-<adcs:evidence>       rtm:Evidence artifacts
+<adcs:evidence>       rtm:Evidence artifacts (incl. rtm:DockerImage under --compute=docker, WP3)
 <adcs:attestations>   rtm:Attestation events
 <adcs:plan-execution> p-plan:Activity instances (one per stage)
 <adcs:audit>          Forward/backward/bidirectional audit summary
