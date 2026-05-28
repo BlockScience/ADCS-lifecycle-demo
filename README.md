@@ -68,8 +68,20 @@ across the union without `GRAPH` clauses.
 uv sync
 uv run python -m pipeline.runner --auto       # scripted attestation
 uv run python -m pipeline.runner               # interactive attestation
-uv run pytest -v                                # 166 tests
+uv run pytest -v                                # default: skips live + network markers
 ```
+
+### Tests
+
+```bash
+uv run pytest               # default: skips live + network markers
+uv run pytest -m live       # opt-in: round-trips against a live Flexo MMS (needs FLEXO_TOKEN)
+uv run pytest -m network    # opt-in: reserved for W3C-vocab fetches (no tests today)
+```
+
+Marker filtering is set in `pyproject.toml` via `addopts = "-m 'not live
+and not network'"` so the canonical invocation never hits external
+services. CI opts in explicitly per workflow.
 
 ## Pipeline Stages
 
@@ -102,7 +114,7 @@ uv run pytest -v                                # 166 tests
     OK  PROV-O      1146 triples,  7 terms referenced
   SysMLv2 equivalence axioms: 9
   Local rtm: integration glue: 13 subclass + 7 subproperty axioms
-  Verification: Python build (run `make ontology-robot` for ELK + report)
+  Verification: ROBOT merge + ELK reasoning + OBO report PASS
   Loaded into <rtm:ontology>: 317 triples
   Closure-rule suite registered: 13 SHACL shapes
 ─────────────────────────────────────────────────────────────────
@@ -297,10 +309,12 @@ adcs:SA-REQ-003
 | -------------------------- | ------------ | -------------------------------------------------------- |
 | Python 3.12, uv            | yes          | runtime + tests + ontology build                         |
 | Docker                     | optional     | `--compute=docker` Stage 2/3 emulation                   |
-| OBO ROBOT (Java JAR)       | optional     | `make ontology-robot` (ELK reasoning + OBO hygiene)      |
+| OBO ROBOT (Java JAR)       | required (default) | `make ontology` (canonical: Python assembly + ROBOT/ELK verification). No-Java users invoke `make ontology-python` instead. |
 | `FLEXO_TOKEN` env var      | optional     | `--backend=flexo` live push                              |
 
-`uv run python -m pipeline.runner` works with no optional tools installed.
+`uv run python -m pipeline.runner` works with no optional tools installed —
+the runner runs against the committed `rtm.ttl`. Only **rebuilding** the
+ontology with `make ontology` requires Java + obo-robot.
 
 ## Ontology Authoring
 
@@ -308,14 +322,22 @@ The canonical artifact `ontology/rtm.ttl` is built. Edit
 `ontology/rtm-edit.ttl` and rebuild:
 
 ```bash
-make fetch-imports        # one-time: pull vendored upstream ontologies
-make ontology             # Python-only build (default, no Java needed)
-make ontology-robot       # optional: ROBOT merge + ELK reason + report (needs Java + obo-robot)
+make fetch-imports     # one-time: pull vendored upstream ontologies
+make ontology          # canonical: Python assembly + ROBOT/ELK verification (requires Java + obo-robot)
+make ontology-python   # no-Java path: Python assembly only, ROBOT verification skipped
+make ontology-robot    # just the ROBOT step (merge + reason + report), without rewriting rtm.ttl
 ```
 
-The build validates every upstream term `rtm-edit.ttl` references exists in
-the vendored copy and regenerates `assembly_manifest.json`. The Stage 0 banner
-is data-driven from that manifest.
+`make ontology` fails fast when Java or obo-robot are missing; the message
+points at `make ontology-python` as the explicit no-Java alternative. The
+manifest's `robot_used` flag records which path produced the current
+artifact; Stage 0's banner is data-driven from that flag.
+
+Every build verifies that each upstream term `rtm-edit.ttl` references
+exists in its vendored import, regenerates `assembly_manifest.json`, and
+enforces a triple-count budget (`TRIPLE_BUDGET=356` in
+`scripts/build_ontology.py`) so the integration ontology can't quietly
+grow novel epistemic vocabulary.
 
 ## Key Directories
 

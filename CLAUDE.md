@@ -162,7 +162,9 @@ separately for a future Flexo migration.
   not renamed), `httpx` for backend HTTP, `typer` for CLI surfaces
 - ProofScript/ProofBuilder pattern reimplemented from gds-proof
 - Docker — optional, for `--compute=docker`
-- OBO ROBOT (Java) — optional, for `make ontology-robot`
+- OBO ROBOT (Java) — **required for default `make ontology`**; no-Java
+  users invoke the explicit `make ontology-python` target instead.
+  CI installs Java 17 + a cached `robot.jar` and verifies every push.
 
 ## Running
 
@@ -172,19 +174,38 @@ uv run python -m pipeline.runner --auto --backend=flexo   # push to Flexo MMS
 uv run python -m pipeline.runner --auto --compute=docker  # remote-compute emulation
 ```
 
+The runner runs against the committed `rtm.ttl`; it does NOT need
+Java/obo-robot. Only **rebuilding** the ontology does.
+
 ## Tests
 
 ```bash
-uv run pytest                       # 166 tests
-uv run pytest -m "not live"         # skip Flexo live tests (already auto-skip)
+uv run pytest               # default: skips live + network markers
+uv run pytest -m live       # opt-in: live Flexo MMS round-trip (needs FLEXO_TOKEN)
+uv run pytest -m network    # opt-in: reserved for W3C-vocab fetches
 ```
+
+Marker filtering is set in `pyproject.toml` via `addopts = "-m 'not
+live and not network'"`. `tests/test_flexo_live.py` carries the
+`live` marker; tests there fail loudly when `-m live` is requested
+without credentials rather than silently skipping (skip-on-opt-in
+would hide infra breakage).
 
 ## Ontology rebuild
 
 ```bash
-make ontology                       # Python build (default; no Java needed)
-make ontology-robot                 # ROBOT merge + ELK reason + report
+make ontology          # canonical: Python assembly + ROBOT/ELK verification (requires Java + obo-robot)
+make ontology-python   # no-Java path: Python assembly only, ROBOT verification skipped
+make ontology-robot    # just the ROBOT step (no rtm.ttl rewrite)
 ```
+
+`make ontology` fails fast on missing Java/obo-robot. The no-Java
+escape is the explicit `ontology-python` target — invoking it is an
+intentional opt-out, not a flag. The manifest's `robot_used` field +
+Stage 0 banner record which path produced the artifact. The build
+also enforces a triple-count budget (`TRIPLE_BUDGET=356` in
+`scripts/build_ontology.py`) so the integration ontology can't quietly
+grow novel epistemic vocabulary.
 
 `rtm.ttl` is a built artifact. Edit `rtm-edit.ttl` and rebuild.
 
