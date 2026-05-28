@@ -30,6 +30,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -300,10 +301,17 @@ def build() -> int:
             "row_count": len(term_map),
         },
         "imports": import_info,
-        "robot_used": False,
+        # ADCS_ROBOT_VERIFIED is set by the Makefile's `ontology` target
+        # after the ROBOT preflight + merge + reason + report step has
+        # cleared. `make ontology-python` (no-Java path) leaves it unset,
+        # so the manifest records `robot_used: false` and Stage 0 prints
+        # the Python-only banner.
+        "robot_used": os.environ.get("ADCS_ROBOT_VERIFIED", "0") == "1",
         "notes": (
-            "Python-based build. ROBOT-based MIREOT extracts and full reasoning "
-            "are the optional `make ontology-robot` path (future work)."
+            "Python assembly + ROBOT/ELK verification (canonical `make ontology` path)."
+            if os.environ.get("ADCS_ROBOT_VERIFIED", "0") == "1"
+            else "Python assembly only (`make ontology-python`; run `make ontology` "
+                 "with Java + obo-robot installed for ROBOT/ELK verification)."
         ),
     }
     MANIFEST_FILE.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

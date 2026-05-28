@@ -1,0 +1,87 @@
+name: Ontology build (ROBOT/ELK)
+
+# WP2 §4.A: ROBOT/ELK is the canonical ontology verifier; CI runs it
+# on every push to main/staging and on every PR so contributions can't
+# land without passing the integration story.
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Python assembly + ROBOT/ELK verification
+    runs-on: ubuntu-latest
+    env:
+      ROBOT_VERSION: "1.9.5"
+      ROBOT: obo-robot
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache the ROBOT jar
+        id: cache-robot
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/lib/robot
+          key: robot-${{ env.ROBOT_VERSION }}
+
+      - name: Download ROBOT jar if not cached
+        if: steps.cache-robot.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/.local/lib/robot"
+          curl -fsSL -o "$HOME/.local/lib/robot/robot.jar" \
+            "https://github.com/ontodev/robot/releases/download/v${ROBOT_VERSION}/robot.jar"
+
+      - name: Install the obo-robot wrapper on PATH
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/obo-robot" <<'EOF'
+          #!/usr/bin/env bash
+          exec java -jar "${HOME}/.local/lib/robot/robot.jar" "$@"
+          EOF
+          chmod +x "$HOME/.local/bin/obo-robot"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Confirm toolchain
+        run: |
+          java -version
+          obo-robot --version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync Python dependencies
+        run: uv sync
+
+      - name: Run canonical ontology build (preflight + Python + ROBOT/ELK)
+        run: make ontology
+
+      - name: Confirm rtm.ttl is committed in-sync with rebuild
+        # If the rebuild produced a different artifact than what's
+        # committed, the contributor forgot to commit the regenerated
+        # rtm.ttl + manifest. Fail the build with a clear diff.
+        run: |
+          if ! git diff --quiet --exit-code -- ontology/rtm.ttl ontology/assembly_manifest.json; then
+            echo "::error::Built ontology artifacts differ from committed copies."
+            echo "Run 'make ontology' locally and commit ontology/rtm.ttl + ontology/assembly_manifest.json."
+            git --no-pager diff --stat -- ontology/rtm.ttl ontology/assembly_manifest.json
+            exit 1
+          fi
+
+      - name: Run unit tests (live + network markers skipped by default)
+        run: uv run pytest -v

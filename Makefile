@@ -1,20 +1,21 @@
 # ============================================================================
 # ADCS Lifecycle Demo — ontology build chain
 #
-# Two paths:
-#   - Default (Python-only, no external deps): `make ontology`
-#       Validates references, generates equivalence axioms from
-#       sysml_term_map.csv, produces rtm.ttl + assembly_manifest.json.
-#       This is the canonical build.
-#   - Optional (ROBOT, requires Java + the OBO ROBOT JAR): `make ontology-robot`
-#       Independent validation via the production-grade openCAESAR / OBO
-#       Foundry toolchain. Resolves owl:imports via catalog-v001.xml,
-#       merges, runs ELK reasoning, runs the OBO hygiene report. Produces
-#       a fat merged-with-imports artifact for inspection. Does NOT
-#       overwrite the canonical ontology/rtm.ttl.
+# Two paths (WP2 §4.A):
+#   - Default (REQUIRES Java + obo-robot on PATH): `make ontology`
+#       Runs the Python assembly (refs check, equivalence axioms,
+#       rtm.ttl + assembly_manifest.json) and then ROBOT/ELK
+#       verification (merge against catalog, ELK reasoning, OBO
+#       hygiene report). Fails fast when the toolchain is missing.
+#       This is the canonical build path. CI runs it on every push.
+#   - No-Java alternative (explicit, named): `make ontology-python`
+#       Runs only the Python assembly. The integration story does NOT
+#       silently degrade — invoking this target is an intentional
+#       opt-out, not a flag on the default. The manifest records
+#       `robot_used: false` so Stage 0 reports the difference.
 #
-# Demo users running the pipeline (`uv run python -m pipeline.runner`) do
-# NOT need either path — rtm.ttl is committed.
+# Demo users running the pipeline (`uv run python -m pipeline.runner`)
+# do NOT need either path — rtm.ttl is committed.
 #
 # ROBOT note: macOS's `brew install robot-framework` installs Robot
 # Framework (Python test tool) which owns /usr/local/bin/robot. The OBO
@@ -25,13 +26,14 @@
 ROBOT ?= obo-robot
 JAVA_HOME ?= /usr/local/opt/openjdk
 
-.PHONY: help fetch-imports ontology ontology-robot validate-imports clean-imports flexo-up flexo-init flexo-down
+.PHONY: help fetch-imports ontology ontology-python ontology-robot _robot-preflight _ontology-python-stamp validate-imports clean-imports flexo-up flexo-init flexo-down
 
 help:
 	@echo "Ontology build targets:"
 	@echo "  fetch-imports     Pull upstream ontologies into ontology/imports/"
-	@echo "  ontology          Build rtm.ttl + assembly_manifest.json (Python, canonical)"
-	@echo "  ontology-robot    Validate via ROBOT (merge + reason + report). Requires $$($(ROBOT) --version 2>/dev/null | tail -1 || echo 'OBO ROBOT')."
+	@echo "  ontology          Canonical build: Python assembly + ROBOT/ELK verification (requires Java + obo-robot)"
+	@echo "  ontology-python   Python assembly only (no-Java path; ROBOT verification skipped)"
+	@echo "  ontology-robot    Run ROBOT merge + ELK reason + report against rtm-edit.ttl (no rtm.ttl rewrite)"
 	@echo "  validate-imports  Check vendored imports parse and contain referenced terms"
 	@echo "  clean-imports     Remove ontology/imports/ (forces re-fetch)"
 	@echo ""
@@ -43,8 +45,22 @@ help:
 fetch-imports:
 	uv run python -m scripts.fetch_imports
 
-ontology:
+# Default canonical build. Fails fast if Java/ROBOT are missing. The
+# preflight + ROBOT verification run BEFORE the stamped Python build so
+# the manifest's `robot_used: true` is only written after ROBOT clears.
+ontology: _robot-preflight ontology-robot _ontology-python-stamp
+	@echo "[ontology] PASS — Python assembly + ROBOT/ELK verification clean."
+
+# No-Java path. Explicit, named target. Manifest records
+# `robot_used: false`; Stage 0 prints the Python-only banner.
+ontology-python:
 	uv run python -m scripts.build_ontology
+
+# Internal: runs the Python assembly with ADCS_ROBOT_VERIFIED=1 so the
+# manifest records `robot_used: true`. Called from `ontology` after the
+# ROBOT verification step has passed.
+_ontology-python-stamp:
+	ADCS_ROBOT_VERIFIED=1 uv run python -m scripts.build_ontology
 
 validate-imports:
 	@uv run python -c "from rdflib import Graph; \
@@ -53,20 +69,32 @@ from pathlib import Path; \
 ok = True; \
 [print(f'  OK  {p.name}: {len(Graph().parse(p, format=\"turtle\"))} triples') for p in Path('ontology/imports').glob('*.ttl')]"
 
-ontology-robot:
+# Preflight: fail-fast on missing Java or obo-robot. The no-Java escape
+# hatch is the explicit `make ontology-python` target (not a flag).
+_robot-preflight:
 	@command -v $(ROBOT) >/dev/null 2>&1 || { \
-		echo "OBO ROBOT not found (looking for command: $(ROBOT))."; \
-		echo "Install: download from http://robot.obolibrary.org and place wrapper at /usr/local/bin/obo-robot."; \
-		echo "Or override the command name: ROBOT=/path/to/robot make ontology-robot"; \
 		echo ""; \
-		echo "ROBOT is OPTIONAL — the canonical build is 'make ontology' (Python-only)."; \
+		echo "ERROR: ROBOT not found on PATH (looking for: $(ROBOT))."; \
+		echo ""; \
+		echo "  ROBOT/ELK is the default verifier for the assembled ontology."; \
+		echo "  Install obo-robot (http://robot.obolibrary.org) or override the"; \
+		echo "  command name: ROBOT=/path/to/robot make ontology"; \
+		echo ""; \
+		echo "  No-Java path (explicit, separate target):"; \
+		echo "    make ontology-python"; \
+		echo ""; \
 		exit 1; \
 	}
 	@PATH="$(JAVA_HOME)/bin:$$PATH" $(ROBOT) --version >/dev/null 2>&1 || { \
-		echo "ROBOT found but Java is missing or unreachable."; \
-		echo "Set JAVA_HOME (currently: $(JAVA_HOME)) to a JRE 11+ install."; \
+		echo ""; \
+		echo "ERROR: ROBOT found but Java is missing or unreachable."; \
+		echo "  Set JAVA_HOME (currently: $(JAVA_HOME)) to a JRE 11+ install,"; \
+		echo "  or use the no-Java path: make ontology-python"; \
+		echo ""; \
 		exit 1; \
 	}
+
+ontology-robot: _robot-preflight
 	@echo "[ROBOT] Merging rtm-edit.ttl + vendored imports (via ontology/catalog-v001.xml) ..."
 	PATH="$(JAVA_HOME)/bin:$$PATH" $(ROBOT) merge \
 		--catalog ontology/catalog-v001.xml \

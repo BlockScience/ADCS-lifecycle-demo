@@ -2,12 +2,12 @@
   "artifact": {
     "equivalence_axioms": 9,
     "path": "ontology/rtm.ttl",
-    "sha256": "98472bdab861e9356764926d7c5b7e8a3a6c58608b66af388deb0acc19bc2843",
+    "sha256": "84851aa28bda6ba9eb1ef637da3caf03ead86bc3da45de14daf937c3c51266ff",
     "subclass_axioms": 13,
     "subproperty_axioms": 7,
     "total_triples": 156
   },
-  "build_time": "2026-05-28T02:48:38Z",
+  "build_time": "2026-05-28T03:34:21Z",
   "edit_source": {
     "path": "ontology/rtm-edit.ttl",
     "sha256": "85373ea56ed7a7430adaccf55b1fc994ef540f8f6ec095894776e45094b22e58"
@@ -96,7 +96,7 @@
       "total_triples": 1146
     }
   },
-  "notes": "Python-based build. ROBOT-based MIREOT extracts and full reasoning are the optional `make ontology-robot` path (future work).",
+  "notes": "Python assembly only (`make ontology-python`; run `make ontology` with Java + obo-robot installed for ROBOT/ELK verification).",
   "robot_used": false,
   "sysml_term_map": {
     "path": "ontology/sysml_term_map.csv",
