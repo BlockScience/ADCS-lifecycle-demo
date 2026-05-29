@@ -24,6 +24,15 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
+        with:
+          # Full history so scripts/build_ontology.py's
+          # _reproducible_build_time() can derive build_time from the
+          # git commit that last touched the build inputs. Shallow
+          # clone (default depth=1) makes `git log -- <files>` return
+          # empty for any file HEAD didn't touch directly; the script
+          # falls back to datetime.now() and produces non-reproducible
+          # artifacts, failing the diff gate that this fix enables.
+          fetch-depth: 0
 
       - name: Set up Java 17 (Temurin)
         uses: actions/setup-java@v4
