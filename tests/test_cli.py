@@ -10,9 +10,25 @@ tests here only verify the CLI shell.
 
 from __future__ import annotations
 
+import re
+
 from typer.testing import CliRunner
 
 runner = CliRunner()
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _flatten_help(text: str) -> str:
+    """Strip ANSI escape codes + collapse whitespace.
+
+    Rich's Typer help renderer inserts ANSI color codes and wraps flag
+    columns to terminal width. CI runners have a narrower default
+    width than dev workstations, which can split a flag across a wrap
+    boundary and break naive substring matches. Flattening makes the
+    substring check terminal-width-agnostic.
+    """
+    return re.sub(r"\s+", " ", _ANSI.sub("", text))
 
 
 # ---------------------------------------------------------------------------
@@ -24,11 +40,12 @@ def test_pipeline_runner_help_lists_known_flags():
     from pipeline.runner import app
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    flat = _flatten_help(result.stdout)
     for flag in (
         "--auto", "--no-attest", "--engineer",
         "--rebuild", "--backend", "--compute",
     ):
-        assert flag in result.stdout, (
+        assert flag in flat, (
             f"Missing {flag} in --help output:\n{result.stdout}"
         )
 
@@ -66,8 +83,9 @@ def test_rerun_help_lists_known_flags():
     from interrogate.rerun import app
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    flat = _flatten_help(result.stdout)
     for flag in ("--input", "--requirement", "--format"):
-        assert flag in result.stdout, (
+        assert flag in flat, (
             f"Missing {flag} in rerun --help:\n{result.stdout}"
         )
 

@@ -143,10 +143,15 @@ def test_emit_digest_match_assertion_failed():
 # ---------------------------------------------------------------------------
 
 def test_reproduce_cli_help():
+    import re
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "--image-digest" in result.stdout
-    assert "--from-trig" in result.stdout
+    # Strip ANSI escape codes + collapse whitespace so terminal-width
+    # wrapping in CI doesn't split a flag across a wrap boundary
+    # (same hardening as tests/test_cli.py::_flatten_help).
+    flat = re.sub(r"\s+", " ", re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", result.stdout))
+    assert "--image-digest" in flat, f"missing in help:\n{result.stdout}"
+    assert "--from-trig" in flat, f"missing in help:\n{result.stdout}"
 
 
 def test_reproduce_cli_exits_2_when_input_missing(tmp_path):
