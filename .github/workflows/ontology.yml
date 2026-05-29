@@ -81,14 +81,24 @@ jobs:
         run: make ontology
 
       - name: Confirm rtm.ttl is committed in-sync with rebuild
-        # If the rebuild produced a different artifact than what's
+        # If the rebuild produced a different rtm.ttl than what's
         # committed, the contributor forgot to commit the regenerated
-        # rtm.ttl + manifest. Fail the build with a clear diff.
+        # artifact. Fail the build with a clear diff.
+        #
+        # Note: assembly_manifest.json is NOT diffed here. CI runs
+        # `make ontology` (with ROBOT), which writes `robot_used: true`
+        # + a ROBOT-specific notes string; local contributors without
+        # Java run `make ontology-python`, which writes `robot_used:
+        # false` + a different notes string. The manifest's build-path
+        # provenance differing between CI and local is the intended
+        # behavior, not a regression. The load-bearing artifact —
+        # rtm.ttl — IS reproducible (build_time pinned via
+        # _reproducible_build_time) and IS diffed here.
         run: |
-          if ! git diff --quiet --exit-code -- ontology/rtm.ttl ontology/assembly_manifest.json; then
-            echo "::error::Built ontology artifacts differ from committed copies."
-            echo "Run 'make ontology' locally and commit ontology/rtm.ttl + ontology/assembly_manifest.json."
-            git --no-pager diff --stat -- ontology/rtm.ttl ontology/assembly_manifest.json
+          if ! git diff --quiet --exit-code -- ontology/rtm.ttl; then
+            echo "::error::Built rtm.ttl differs from committed copy."
+            echo "Run 'make ontology' (or 'make ontology-python') locally and commit ontology/rtm.ttl + ontology/assembly_manifest.json."
+            git --no-pager diff --stat -- ontology/rtm.ttl
             exit 1
           fi
 
